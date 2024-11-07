@@ -1,0 +1,91 @@
+<!-- src/app/stepper/stepper.component.html -->
+<div>
+  <mat-horizontal-stepper linear #stepper>
+    <!-- Step 1: Upload Front Image -->
+    <mat-step [stepControl]="frontForm">
+      <form [formGroup]="frontForm">
+        <ng-template matStepLabel>Upload Front of License</ng-template>
+
+        <file-pond
+          name="frontImage"
+          [options]="frontPondOptions"
+          (onaddfile)="onFrontImageAdded($event)"
+          aria-label="Upload front image of your driver's license"
+          style="padding-top: 25px"
+        ></file-pond>
+
+        <div *ngIf="frontImagePreview">
+          <img
+            [src]="frontImagePreview"
+            alt="Front Image Preview"
+            width="200"
+          />
+        </div>
+
+        <div>
+          <button mat-button matStepperNext [disabled]="!frontForm.valid">
+            Next
+          </button>
+        </div>
+      </form>
+    </mat-step>
+
+    <!-- Step 2: Upload Back Image and Select State -->
+    <mat-step [stepControl]="backForm">
+      <form [formGroup]="backForm">
+        <ng-template matStepLabel>Upload Back of License</ng-template>
+
+        <file-pond
+          name="backImage"
+          [options]="backPondOptions"
+          (onaddfile)="onBackImageAdded($event)"
+          aria-label="Upload back image of your driver's license"
+          style="padding-top: 25px"
+        ></file-pond>
+
+        <div>
+          <button mat-button matStepperPrevious>Back</button>
+          <button
+            mat-raised-button
+            color="primary"
+            (click)="onSubmit()"
+            [disabled]="!backForm.valid"
+          >
+            Submit
+          </button>
+        </div>
+      </form>
+    </mat-step>
+
+    <!-- Step 3: Display License Data -->
+    <mat-step>
+      <ng-template matStepLabel>Review License Data</ng-template>
+
+      <div *ngIf="isProcessing" style="margin-bottom: 20px">
+        <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+        <p>Processing...</p>
+      </div>
+
+      <div *ngIf="!isProcessing && licenseData">
+        <h3>Extracted License Data</h3>
+        <pre>{{ licenseData | json }}</pre>
+
+        <button mat-raised-button color="primary" (click)="copyToClipboard()">
+          Copy JSON
+        </button>
+        <button mat-raised-button color="accent" (click)="downloadJSON()">
+          Download JSON
+        </button>
+      </div>
+
+      <div *ngIf="!isProcessing && !licenseData && errorMessage">
+        <p style="color: red">{{ errorMessage }}</p>
+        <button mat-button (click)="retry()">Retry</button>
+      </div>
+
+      <div>
+        <button mat-button matStepperPrevious>Back</button>
+      </div>
+    </mat-step>
+  </mat-horizontal-stepper>
+</div>
