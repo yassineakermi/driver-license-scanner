@@ -218,15 +218,12 @@ export class StepperComponent implements OnInit {
         // Proceed to final step
         this.stepper.selectedIndex = 3; // Adjust index based on your steps
       } catch (error) {
-        // If still fails, proceed to cropping step
+        // If still fails, proceed to cropping step without alerting the user
         console.error('Barcode extraction failed after upscaling:', error);
         this.isProcessing = false;
         this.isBackImageProcessing = false;
-        this.errorMessage =
-          'Failed to extract barcode data. Please crop the image for better recognition.';
-        alert(this.errorMessage);
         this.needsCropping = true;
-        await this.startCropping(); // Start cropping with upscaled image
+        // Do not start cropping automatically
         this.stepper.selectedIndex = 2; // Move to cropping step
       }
     }
@@ -237,25 +234,25 @@ export class StepperComponent implements OnInit {
    */
   async upscaleBackImage() {
     if (!this.originalBackImagePreview) return;
-  
-    // Adjust upscale dimensions incrementally or keep them fixed
-    this.upscaleWidth = 1920; // or any desired fixed width
-    this.upscaleHeight = 1920; // or any desired fixed height
-  
+
+    // Set upscale dimensions to maximum desired values
+    this.upscaleWidth = 3000;
+    this.upscaleHeight = 3000;
+
     const upscaledImage = await this.upscaleImage(
       this.originalBackImagePreview as string,
       this.upscaleWidth,
       this.upscaleHeight
     );
-  
+
     // Update backImage and backImagePreview with upscaled image
     this.backImage = this.base64ToFile(upscaledImage, 'upscaled-back-image.png');
     this.backImagePreview = upscaledImage;
-  
+
     // Update the backFiles array with the upscaled file
     this.backFiles = [this.backImage];
   }
-  
+
   /**
    * Handles the removal of the front image.
    * Clears the preview and resets the form control.
@@ -319,6 +316,10 @@ export class StepperComponent implements OnInit {
   async startCropping() {
     this.isCropping = true;
     this.isCroppingToolReady = false;
+
+    // Set upscale dimensions to maximum desired values
+    this.upscaleWidth = 3000;
+    this.upscaleHeight = 3000;
 
     // Upscale the back image before opening the cropping tool
     await this.upscaleBackImage();
@@ -417,11 +418,10 @@ export class StepperComponent implements OnInit {
       this.upscaleAttempt++;
 
       if (this.upscaleAttempt < this.maxUpscaleAttempts) {
-        this.errorMessage =
-          `Barcode extraction failed after attempt ${this.upscaleAttempt}. The image will be upscaled again. Please select the license frame once more.`;
-        alert(this.errorMessage);
-
-        // Upscale from the original image again with increased dimensions
+        // Retry extraction without alerting the user
+        // Upscale the image further
+        this.upscaleWidth += 500;
+        this.upscaleHeight += 500;
         await this.upscaleBackImage();
 
         // Reset cropping tool
@@ -449,49 +449,50 @@ export class StepperComponent implements OnInit {
     }
   }
 
-/**
+  /**
    * Upscales a base64 image to specified width and height, matching the user's upscaling logic.
    * @param imageBase64 The base64 string of the image to upscale.
    * @param width The target width for upscaling.
    * @param height The target height for upscaling.
    * @returns A Promise that resolves to the upscaled base64 image string.
    */
-async upscaleImage(
-  imageBase64: string,
-  width: number,
-  height: number
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.src = imageBase64;
-    img.crossOrigin = 'Anonymous'; // To avoid CORS issues
-    img.onload = () => {
-      let canvas = document.createElement('canvas');
-      let ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject('Cannot get canvas context');
-        return;
-      }
+  async upscaleImage(
+    imageBase64: string,
+    width: number,
+    height: number
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = imageBase64;
+      img.crossOrigin = 'Anonymous'; // To avoid CORS issues
+      img.onload = () => {
+        let canvas = document.createElement('canvas');
+        let ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject('Cannot get canvas context');
+          return;
+        }
 
-      canvas.width = width;
-      canvas.height = height;
+        canvas.width = width;
+        canvas.height = height;
 
-      // Apply the same calculations as in your code
-      let imageWidth = canvas.width;
-      let imageHeight = img.height * (imageWidth / canvas.width);
-      let centerX = canvas.width / 2;
-      let centerY = canvas.height / 2;
-      let x = centerX - imageWidth / 2;
-      let y = centerY - imageHeight / 2;
+        // Apply the same calculations as in your code
+        let imageWidth = canvas.width;
+        let imageHeight = img.height * (imageWidth / canvas.width);
+        let centerX = canvas.width / 2;
+        let centerY = canvas.height / 2;
+        let x = centerX - imageWidth / 2;
+        let y = centerY - imageHeight / 2;
 
-      ctx.drawImage(img, x, y, imageWidth, imageHeight);
+        ctx.drawImage(img, x, y, imageWidth, imageHeight);
 
-      let upscaledImage = canvas.toDataURL('image/png', 0.9);
-      resolve(upscaledImage);
-    };
-    img.onerror = (error) => reject(error);
-  });
-}
+        let upscaledImage = canvas.toDataURL('image/png', 0.9);
+        resolve(upscaledImage);
+      };
+      img.onerror = (error) => reject(error);
+    });
+  }
+
   /**
    * Image Validation
    */

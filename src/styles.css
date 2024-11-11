@@ -2,125 +2,124 @@
 
 /* General Body Styles */
 body {
-    font-family: Roboto, Arial, sans-serif;
-    background-color: #f5f5f5;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-  }
-  
-  /* Header Styles */
-  h1 {
-    text-align: center;
-    margin-top: 20px;
-    color: #3f51b5;
-  }
-  
-  /* Preformatted Text Styles */
-  pre {
-    background-color: #e0e0e0;
-    padding: 15px;
-    border-radius: 5px;
-    overflow-x: auto;
-  }
-  
-  /* Visually Hidden Elements */
-  .cdk-visually-hidden {
-    display: none;
-  }
-  
-  /* Button Group Styles */
-  .button-group {
-    display: flex;
-    gap: 10px;
-    margin-top: 20px;
-  }
-  
-  /* Raised Button Hover Effects */
-  button.mat-raised-button {
-    transition: background-color 0.3s ease;
-  }
-  
-  button.mat-raised-button:hover {
-    filter: brightness(90%);
-  }
-  
-  /* FilePond Wrapper Padding */
-  .filepond--wrapper {
-    padding-top: 25px;
-  }
-  
-  /* Image Cropper Styles */
-  image-cropper {
-    max-width: 100%;
-    display: block;
-    margin: 0 auto;
-  }
-  
-  /* Additional Styles for Stepper Component */
-  
-  /* Margins for Form Fields */
-  .mat-form-field {
-    margin-top: 20px;
-  }
-  
-  /* Image Preview Styles */
-  img {
-    margin-top: 20px;
-    border: 1px solid #ccc;
-    padding: 5px;
-  }
-  
-  /* Button Group Styles Specific to Stepper */
-  .button-group,
-  .navigation-buttons,
-  .process-buttons {
-    display: flex;
-    gap: 10px;
-    margin-top: 20px;
-  }
-  
-  /* Navigation Buttons Alignment */
-  .navigation-buttons {
-    justify-content: flex-end;
-  }
-  
-  /* Process Buttons Alignment */
-  .process-buttons {
-    justify-content: flex-start;
-  }
-  
-  /* Differentiate Process Buttons */
-  button.process-button {
-    background-color: #e0e0e0;
-    color: #000;
-  }
-  
-  /* Differentiate Navigation Buttons */
-  button.navigation-button {
-    background-color: #3f51b5;
-    color: #fff;
-  }
-  
-  /* Ensure Image Cropper is Responsive */
-  image-cropper {
-    max-width: 100%;
-    display: block;
-    margin: 0 auto;
-  }
-  
-  /* Optional: Add distinct styles if needed */
-  
-  /* Example: Custom Styles for Process Buttons */
-  .process-buttons button {
-    /* If you want to add more specific styles, you can do so here */
-  }
-  
-  /* Example: Custom Styles for Navigation Buttons */
-  .navigation-buttons button {
-    /* If you want to add more specific styles, you can do so here */
-  }
-  
+  font-family: Roboto, Arial, sans-serif;
+  background-color: #f5f5f5;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+/* Header Styles */
+h1 {
+  text-align: center;
+  margin-top: 20px;
+  color: #3f51b5;
+}
+
+/* Preformatted Text Styles */
+pre {
+  background-color: #e0e0e0;
+  padding: 15px;
+  border-radius: 5px;
+  overflow-x: auto;
+}
+
+/* Visually Hidden Elements */
+.cdk-visually-hidden {
+  display: none;
+}
+
+/* Button Group Styles */
+.button-group {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* Raised Button Hover Effects */
+button.mat-raised-button {
+  transition: background-color 0.3s ease;
+}
+
+button.mat-raised-button:hover {
+  filter: brightness(90%);
+}
+
+/* FilePond Wrapper Padding */
+.filepond--wrapper {
+  padding-top: 25px;
+}
+
+/* Image Cropper Styles */
+image-cropper {
+  max-width: 100%;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Additional Styles for Stepper Component */
+
+/* Margins for Form Fields */
+.mat-form-field {
+  margin-top: 20px;
+}
+
+/* Image Preview Styles */
+img {
+  margin-top: 20px;
+  border: 1px solid #ccc;
+  padding: 5px;
+}
+
+/* Button Group Styles Specific to Stepper */
+.button-group,
+.navigation-buttons,
+.process-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* Navigation Buttons Alignment */
+.navigation-buttons {
+  justify-content: flex-end;
+}
+
+/* Process Buttons Alignment */
+.process-buttons {
+  justify-content: flex-start;
+}
+
+/* Differentiate Process Buttons */
+button.process-button {
+  background-color: #e0e0e0;
+  color: #000;
+}
+
+/* Differentiate Navigation Buttons */
+button.navigation-button {
+  background-color: #3f51b5;
+  color: #fff;
+}
+
+/* Ensure Image Cropper is Responsive */
+image-cropper {
+  max-width: 100%;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Optional: Add distinct styles if needed */
+
+/* Example: Custom Styles for Process Buttons */
+.process-buttons button {
+  /* If you want to add more specific styles, you can do so here */
+}
+
+/* Example: Custom Styles for Navigation Buttons */
+.navigation-buttons button {
+  /* If you want to add more specific styles, you can do so here */
+}
