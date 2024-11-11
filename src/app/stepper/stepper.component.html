@@ -1,91 +1,212 @@
 <!-- src/app/stepper/stepper.component.html -->
+
 <div>
-  <mat-horizontal-stepper linear #stepper>
-    <!-- Step 1: Upload Front Image -->
-    <mat-step [stepControl]="frontForm">
-      <form [formGroup]="frontForm">
-        <ng-template matStepLabel>Upload Front of License</ng-template>
-
-        <file-pond
-          name="frontImage"
-          [options]="frontPondOptions"
-          (onaddfile)="onFrontImageAdded($event)"
-          aria-label="Upload front image of your driver's license"
-          style="padding-top: 25px"
-        ></file-pond>
-
-        <div *ngIf="frontImagePreview">
-          <img
-            [src]="frontImagePreview"
-            alt="Front Image Preview"
-            width="200"
-          />
+    <mat-horizontal-stepper linear #stepper>
+      <!-- Step 1: Upload Front Image -->
+      <mat-step [stepControl]="frontForm">
+        <form [formGroup]="frontForm">
+          <ng-template matStepLabel>Upload Front of License</ng-template>
+  
+          <file-pond
+            name="frontImage"
+            [files]="frontFiles"
+            [options]="frontPondOptions"
+            (onaddfile)="onFrontImageAdded($event)"
+            (onremovefile)="onFrontImageRemoved($event)"
+            aria-label="Upload front image of your driver's license"
+            style="padding-top: 25px"
+          ></file-pond>
+  
+          <div *ngIf="frontImagePreview" style="margin-top: 20px">
+            <img
+              [src]="frontImagePreview"
+              alt="Front Image Preview"
+              width="200"
+            />
+          </div>
+  
+          <div class="navigation-buttons">
+            <button
+              mat-raised-button
+              color="primary"
+              matStepperNext
+              [disabled]="!frontForm.valid"
+            >
+              Next
+            </button>
+          </div>
+        </form>
+      </mat-step>
+  
+      <!-- Step 2: Upload Back Image -->
+      <mat-step [stepControl]="backForm">
+        <form [formGroup]="backForm">
+          <ng-template matStepLabel>Upload Back of License</ng-template>
+  
+          <file-pond
+            name="backImage"
+            [files]="backFiles"
+            [options]="backPondOptions"
+            (onaddfile)="onBackImageAdded($event)"
+            (onremovefile)="onBackImageRemoved($event)"
+            aria-label="Upload back image of your driver's license"
+            style="padding-top: 25px"
+          ></file-pond>
+  
+          <!-- Back Image Preview -->
+          <div *ngIf="backImagePreview" style="margin-top: 20px">
+            <p>Back Image Preview:</p>
+            <img [src]="backImagePreview" alt="Back Image Preview" width="200" />
+          </div>
+  
+          <div *ngIf="isProcessing" style="margin-bottom: 20px">
+            <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+            <p>Processing...</p>
+          </div>
+  
+          <div *ngIf="!isProcessing && errorMessage">
+            <p style="color: red">{{ errorMessage }}</p>
+          </div>
+  
+          <div class="navigation-buttons">
+            <button
+              mat-raised-button
+              color="warn"
+              matStepperPrevious
+              style="margin-right: 10px"
+            >
+              Back
+            </button>
+            <button
+              mat-raised-button
+              color="primary"
+              [disabled]="!backForm.valid || isProcessing"
+              (click)="onBackImageNext()"
+            >
+              Next
+            </button>
+          </div>
+        </form>
+      </mat-step>
+  
+      <!-- Step 3: Crop Image (conditionally displayed) -->
+      <mat-step *ngIf="needsCropping">
+        <ng-template matStepLabel>Crop Image</ng-template>
+  
+        <!-- Cropping content -->
+        <div style="margin-top: 20px">
+          <p>
+            Please crop the image to include only the license area, ensuring the
+            barcode is clear and prominent.
+          </p>
+          <image-cropper
+            [imageFile]="backImage"
+            [maintainAspectRatio]="true"
+            [aspectRatio]="1.58 / 1"
+            format="png"
+            [imageQuality]="1"
+            [resizeToWidth]="2500"
+            (imageCropped)="onBackImageCropped($event)"
+            (imageLoaded)="onImageLoaded()"
+          ></image-cropper>
+  
+          <!-- Cropped Image Preview -->
+          <div *ngIf="croppedBackImage" style="margin-top: 20px">
+            <p>Cropped Image Preview:</p>
+            <img
+              [src]="croppedBackImage"
+              alt="Cropped Back Image"
+              width="200"
+            />
+          </div>
+  
+          <div class="process-buttons">
+            <button
+              mat-raised-button
+              color="primary"
+              type="button"
+              [disabled]="!isCroppingToolReady || !isCroppedImageAvailable"
+              (click)="applyCroppedImage()"
+              style="margin-right: 10px"
+            >
+              Apply Cropped Image
+            </button>
+            <button
+              mat-raised-button
+              color="warn"
+              type="button"
+              (click)="cancelCropping()"
+            >
+              Cancel Cropping
+            </button>
+          </div>
+  
+          <div *ngIf="isProcessing" style="margin-bottom: 20px">
+            <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+            <p>Processing...</p>
+          </div>
+  
+          <div *ngIf="!isProcessing && errorMessage">
+            <p style="color: red">{{ errorMessage }}</p>
+          </div>
+  
+          <div class="navigation-buttons">
+            <button
+              mat-raised-button
+              color="warn"
+              matStepperPrevious
+              style="margin-right: 10px"
+            >
+              Back
+            </button>
+            <button
+              mat-raised-button
+              color="primary"
+              [disabled]="!isCroppedImageAvailable || isProcessing"
+              (click)="onCroppedImageNext()"
+            >
+              Next
+            </button>
+          </div>
         </div>
-
-        <div>
-          <button mat-button matStepperNext [disabled]="!frontForm.valid">
-            Next
-          </button>
+      </mat-step>
+  
+      <!-- Step 4: Display License Data -->
+      <mat-step>
+        <ng-template matStepLabel>Review License Data</ng-template>
+  
+        <div *ngIf="isProcessing" style="margin-bottom: 20px">
+          <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+          <p>Processing...</p>
         </div>
-      </form>
-    </mat-step>
-
-    <!-- Step 2: Upload Back Image and Select State -->
-    <mat-step [stepControl]="backForm">
-      <form [formGroup]="backForm">
-        <ng-template matStepLabel>Upload Back of License</ng-template>
-
-        <file-pond
-          name="backImage"
-          [options]="backPondOptions"
-          (onaddfile)="onBackImageAdded($event)"
-          aria-label="Upload back image of your driver's license"
-          style="padding-top: 25px"
-        ></file-pond>
-
-        <div>
-          <button mat-button matStepperPrevious>Back</button>
-          <button
-            mat-raised-button
-            color="primary"
-            (click)="onSubmit()"
-            [disabled]="!backForm.valid"
-          >
-            Submit
-          </button>
+  
+        <div *ngIf="!isProcessing && licenseData">
+          <h3>Extracted License Data</h3>
+          <pre>{{ licenseData | json }}</pre>
+  
+          <div class="button-group">
+            <button mat-raised-button color="accent" (click)="copyToClipboard()">
+              Copy JSON
+            </button>
+            <button mat-raised-button color="primary" (click)="downloadJSON()">
+              Download JSON
+            </button>
+          </div>
         </div>
-      </form>
-    </mat-step>
-
-    <!-- Step 3: Display License Data -->
-    <mat-step>
-      <ng-template matStepLabel>Review License Data</ng-template>
-
-      <div *ngIf="isProcessing" style="margin-bottom: 20px">
-        <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-        <p>Processing...</p>
-      </div>
-
-      <div *ngIf="!isProcessing && licenseData">
-        <h3>Extracted License Data</h3>
-        <pre>{{ licenseData | json }}</pre>
-
-        <button mat-raised-button color="primary" (click)="copyToClipboard()">
-          Copy JSON
-        </button>
-        <button mat-raised-button color="accent" (click)="downloadJSON()">
-          Download JSON
-        </button>
-      </div>
-
-      <div *ngIf="!isProcessing && !licenseData && errorMessage">
-        <p style="color: red">{{ errorMessage }}</p>
-        <button mat-button (click)="retry()">Retry</button>
-      </div>
-
-      <div>
-        <button mat-button matStepperPrevious>Back</button>
-      </div>
-    </mat-step>
-  </mat-horizontal-stepper>
-</div>
+  
+        <div *ngIf="!isProcessing && !licenseData && errorMessage">
+          <p style="color: red">{{ errorMessage }}</p>
+          <div style="margin-top: 20px">
+            <button mat-raised-button color="warn" (click)="retry()">
+              Retry
+            </button>
+          </div>
+        </div>
+  
+        <div class="navigation-buttons">
+          <button mat-raised-button color="warn" matStepperPrevious>Back</button>
+        </div>
+      </mat-step>
+    </mat-horizontal-stepper>
+  </div>
+  

@@ -1,32 +1,31 @@
 // src/app/stepper/stepper.component.ts
+
 import { Component, OnInit, ViewChild } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule } from '@angular/forms';
+import {
+  FormBuilder,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 
 // Angular Material Modules
 import { MatStepperModule } from '@angular/material/stepper';
 import { MatButtonModule } from '@angular/material/button';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatStepper } from '@angular/material/stepper';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 
 // ngx-filepond Modules
-import { FilePondModule } from 'ngx-filepond';
+import { FilePondComponent, FilePondModule } from 'ngx-filepond';
 import { registerPlugin } from 'ngx-filepond';
 
 // FilePond Plugins
 import FilePondPluginImagePreview from 'filepond-plugin-image-preview';
 import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
-import FilePondPluginImageCrop from 'filepond-plugin-image-crop';
 
 // Register FilePond plugins
-registerPlugin(
-  FilePondPluginImagePreview,
-  FilePondPluginFileValidateType,
-  FilePondPluginImageCrop
-);
+registerPlugin(FilePondPluginImagePreview, FilePondPluginFileValidateType);
 
 // ZXing for barcode decoding
 import {
@@ -35,6 +34,10 @@ import {
   BarcodeFormat,
   Result,
 } from '@zxing/library';
+
+// Import ngx-image-cropper
+import { ImageCropperComponent, ImageCroppedEvent } from 'ngx-image-cropper';
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-stepper',
@@ -48,6 +51,7 @@ import {
     MatProgressBarModule,
     FilePondModule,
     ReactiveFormsModule,
+    ImageCropperComponent, // Ensure this is imported
   ],
   templateUrl: './stepper.component.html',
   styleUrls: ['./stepper.component.css'],
@@ -56,32 +60,58 @@ export class StepperComponent implements OnInit {
   frontForm: FormGroup;
   backForm: FormGroup;
   frontImage: File | null = null;
-  backImage: File | null = null;
+  backImage: File | undefined = undefined;
   frontImagePreview: string | ArrayBuffer | null = null;
   backImagePreview: string | ArrayBuffer | null = null;
+  originalBackImagePreview: string | ArrayBuffer | null = null; // Store original back image
 
-  selectedState: string | null = null;
-  licenseData: any = null; // Changed from {} to any to allow dynamic properties
+  needsCropping: boolean = false; // Controls whether the cropping step is displayed
+
+  licenseData: any = null;
   isProcessing: boolean = false;
   errorMessage: string | null = null;
   @ViewChild('stepper') stepper!: MatStepper;
 
-  // FilePond Options (Optional Customization)
+  // Cropping properties
+  croppedBackImage: string = '';
+  croppedBackImageBlob: Blob | null = null; // To store the cropped image blob
+  isCropping: boolean = false; // Manage cropping state
+
+  @ViewChild('backPond') backPondComponent!: FilePondComponent; // Reference to FilePond
+
+  // FilePond Files Arrays
+  backFiles: any[] = []; // For back image files
+  frontFiles: File[] = []; // For front image files
+
+  // Upscaling attempts
+  upscaleAttempt: number = 0;
+  maxUpscaleAttempts: number = 3; // Allow up to 3 attempts
+
+  // Processing states
+  isBackImageProcessing: boolean = false;
+
+  isCroppedImageAvailable: boolean = false;
+  isCroppedImageProcessing: boolean = false;
+  isCroppingToolReady: boolean = false;
+
+  // Upscaling dimensions
+  upscaleWidth: number = 1920; // Initial upscale width
+  upscaleHeight: number = 1920; // Initial upscale height
+
+  // FilePond Options
   frontPondOptions: any = {
-    allowImageCrop: true,
-    imageCropAspectRatio: '1.58:1',
+    allowImageCrop: false,
     acceptedFileTypes: ['image/jpeg', 'image/png'],
-    maxFileSize: '5MB',
+    maxFileSize: '100MB',
     allowMultiple: false,
     labelIdle:
       'Drag & Drop your front license or <span class="filepond--label-action">Browse</span>',
   };
 
   backPondOptions: any = {
-    allowImageCrop: true,
-    imageCropAspectRatio: '1.58:1',
+    allowImageCrop: false,
     acceptedFileTypes: ['image/jpeg', 'image/png'],
-    maxFileSize: '5MB',
+    maxFileSize: '100MB',
     allowMultiple: false,
     labelIdle:
       'Drag & Drop your back license or <span class="filepond--label-action">Browse</span>',
@@ -98,12 +128,18 @@ export class StepperComponent implements OnInit {
 
   ngOnInit(): void {}
 
-  // Handle Front Image Upload
+  /**
+   * Handles the addition of a front image file.
+   * @param event The event emitted when a front image is added.
+   */
   onFrontImageAdded(event: any) {
     const file: File = event.file.file;
     if (this.validateImage(file)) {
       this.frontImage = file;
       this.frontForm.patchValue({ frontImage: file });
+
+      // Update frontFiles array
+      this.frontFiles = [file];
 
       const reader = new FileReader();
       reader.onload = () => {
@@ -112,36 +148,356 @@ export class StepperComponent implements OnInit {
       reader.readAsDataURL(file);
     } else {
       alert(
-        'Invalid front image. Please upload a valid JPEG or PNG image under 5MB.'
+        'Invalid front image. Please upload a valid JPEG or PNG image under 100MB.'
       );
       event.file.rejectFile();
     }
   }
 
-  // Handle Back Image Upload
+  /**
+   * Handles the addition of a back image file.
+   * Sets up the image and its preview but does not process it yet.
+   */
   onBackImageAdded(event: any) {
     const file: File = event.file.file;
     if (this.validateImage(file)) {
       this.backImage = file;
       this.backForm.patchValue({ backImage: file });
 
+      // Update backFiles array
+      this.backFiles = [file];
+
       const reader = new FileReader();
       reader.onload = () => {
         this.backImagePreview = reader.result;
+        this.originalBackImagePreview = this.backImagePreview; // Store original
+        this.isBackImageProcessing = false;
+        this.errorMessage = null;
+        this.upscaleAttempt = 0; // Reset attempts on new image
       };
       reader.readAsDataURL(file);
     } else {
       alert(
-        'Invalid back image. Please upload a valid JPEG or PNG image under 5MB.'
+        'Invalid back image. Please upload a valid JPEG or PNG image under 100MB.'
       );
       event.file.rejectFile();
     }
   }
 
-  // Image Validation
+  /**
+   * Processes the back image when the user clicks 'Next' after uploading back image.
+   */
+  async processBackImage() {
+    if (!this.backImagePreview) {
+      alert('Please upload the back image first.');
+      return;
+    }
+    this.isProcessing = true;
+    this.isBackImageProcessing = true;
+    this.errorMessage = null;
+
+    try {
+      // Try to read barcode without upscaling
+      const barcodeText = await this.extractBarcodeData(this.backImagePreview as string);
+      this.licenseData = this.parseBarcodeData(barcodeText);
+      this.isProcessing = false;
+      this.isBackImageProcessing = false;
+
+      // Proceed to final step
+      this.stepper.selectedIndex = 3; // Adjust index based on your steps
+    } catch (error) {
+      console.warn('Initial barcode extraction failed. Attempting upscaling...');
+      try {
+        // Upscale the image once and try again
+        await this.upscaleBackImage();
+        const barcodeText = await this.extractBarcodeData(this.backImagePreview as string);
+        this.licenseData = this.parseBarcodeData(barcodeText);
+        this.isProcessing = false;
+        this.isBackImageProcessing = false;
+
+        // Proceed to final step
+        this.stepper.selectedIndex = 3; // Adjust index based on your steps
+      } catch (error) {
+        // If still fails, proceed to cropping step
+        console.error('Barcode extraction failed after upscaling:', error);
+        this.isProcessing = false;
+        this.isBackImageProcessing = false;
+        this.errorMessage =
+          'Failed to extract barcode data. Please crop the image for better recognition.';
+        alert(this.errorMessage);
+        this.needsCropping = true;
+        await this.startCropping(); // Start cropping with upscaled image
+        this.stepper.selectedIndex = 2; // Move to cropping step
+      }
+    }
+  }
+
+  /**
+   * Upscales the back image and updates the preview using the provided upscaling logic.
+   */
+  async upscaleBackImage() {
+    if (!this.originalBackImagePreview) return;
+  
+    // Adjust upscale dimensions incrementally or keep them fixed
+    this.upscaleWidth = 1920; // or any desired fixed width
+    this.upscaleHeight = 1920; // or any desired fixed height
+  
+    const upscaledImage = await this.upscaleImage(
+      this.originalBackImagePreview as string,
+      this.upscaleWidth,
+      this.upscaleHeight
+    );
+  
+    // Update backImage and backImagePreview with upscaled image
+    this.backImage = this.base64ToFile(upscaledImage, 'upscaled-back-image.png');
+    this.backImagePreview = upscaledImage;
+  
+    // Update the backFiles array with the upscaled file
+    this.backFiles = [this.backImage];
+  }
+  
+  /**
+   * Handles the removal of the front image.
+   * Clears the preview and resets the form control.
+   */
+  onFrontImageRemoved(event: any) {
+    // Clear the front image properties
+    this.frontImage = null;
+    this.frontImagePreview = null;
+
+    // Clear the frontFiles array
+    this.frontFiles = [];
+
+    // Reset the front form control
+    this.frontForm.patchValue({ frontImage: null });
+  }
+
+  /**
+   * Handles the removal of the back image.
+   * Clears the preview and resets the form control.
+   */
+  onBackImageRemoved(event: any) {
+    // Clear the back image properties
+    this.backImage = undefined;
+    this.backImagePreview = null;
+    this.originalBackImagePreview = null;
+
+    // Clear the backFiles array
+    this.backFiles = [];
+
+    // Reset the back form control
+    this.backForm.patchValue({ backImage: null });
+
+    // If cropping was active, cancel it
+    if (this.isCropping) {
+      this.cancelCropping();
+    }
+
+    // Reset needsCropping flag
+    this.needsCropping = false;
+
+    // Reset upscale attempts
+    this.upscaleAttempt = 0;
+
+    // Reset processing states
+    this.isBackImageProcessing = false;
+    this.errorMessage = null;
+
+    // Reset upscale dimensions
+    this.upscaleWidth = 1920;
+    this.upscaleHeight = 1920;
+  }
+
+  /**
+   * Handles the 'Next' button click on the 'Upload Back Image' step.
+   */
+  onBackImageNext() {
+    this.processBackImage();
+  }
+
+  // Start Cropping
+  async startCropping() {
+    this.isCropping = true;
+    this.isCroppingToolReady = false;
+
+    // Upscale the back image before opening the cropping tool
+    await this.upscaleBackImage();
+  }
+
+  // Cancel Cropping
+  cancelCropping() {
+    this.isCropping = false;
+    this.croppedBackImage = '';
+    this.croppedBackImageBlob = null;
+
+    // Reset processing states
+    this.isCroppedImageAvailable = false;
+    this.isCroppedImageProcessing = false;
+    this.upscaleAttempt = 0;
+    this.errorMessage = null;
+
+    // Reset upscale dimensions
+    this.upscaleWidth = 1920;
+    this.upscaleHeight = 1920;
+  }
+
+  /**
+   * Handles the image loaded event from the image cropper.
+   */
+  onImageLoaded() {
+    this.isCroppingToolReady = true;
+  }
+
+  /**
+   * Handles the image cropped event from the image cropper.
+   * @param event The ImageCroppedEvent containing the cropped image blob.
+   */
+  onBackImageCropped(event: ImageCroppedEvent) {
+    this.croppedBackImageBlob = event.blob ?? null;
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      this.croppedBackImage = reader.result as string;
+      console.log('Cropped Image Base64:', this.croppedBackImage);
+      this.isCroppedImageAvailable = true;
+    };
+
+    if (event.blob) {
+      reader.readAsDataURL(event.blob);
+    }
+  }
+
+  /**
+   * Applies the cropped image.
+   */
+  applyCroppedImage() {
+    if (this.croppedBackImageBlob) {
+      // Create a File from the Blob
+      const fileName = 'cropped-back-image.png';
+      const croppedFile = new File([this.croppedBackImageBlob], fileName, {
+        type: 'image/png',
+      });
+
+      // Update backImage and backImagePreview
+      this.backImage = croppedFile;
+      this.backImagePreview = this.croppedBackImage;
+
+      // Update the files in FilePond
+      this.backFiles = [croppedFile];
+
+      this.errorMessage = null;
+    } else {
+      alert('No cropped image available.');
+    }
+  }
+
+  /**
+   * Handles the 'Next' button click on the 'Crop Image' step.
+   */
+  async onCroppedImageNext() {
+    if (!this.croppedBackImage) {
+      alert('Please apply the cropped image first.');
+      return;
+    }
+    this.isProcessing = true;
+    this.isCroppedImageProcessing = true;
+
+    try {
+      const barcodeText = await this.extractBarcodeData(this.backImagePreview as string);
+      this.licenseData = this.parseBarcodeData(barcodeText);
+      this.isProcessing = false;
+      this.isCroppedImageProcessing = false;
+
+      // Proceed to final step
+      this.stepper.selectedIndex = 3; // Adjust index based on your steps
+    } catch (error) {
+      console.error('Barcode extraction failed after cropping:', error);
+      this.isProcessing = false;
+      this.isCroppedImageProcessing = false;
+      this.upscaleAttempt++;
+
+      if (this.upscaleAttempt < this.maxUpscaleAttempts) {
+        this.errorMessage =
+          `Barcode extraction failed after attempt ${this.upscaleAttempt}. The image will be upscaled again. Please select the license frame once more.`;
+        alert(this.errorMessage);
+
+        // Upscale from the original image again with increased dimensions
+        await this.upscaleBackImage();
+
+        // Reset cropping tool
+        this.isCroppingToolReady = false;
+        this.isCroppedImageAvailable = false;
+        this.croppedBackImage = '';
+        this.croppedBackImageBlob = null;
+
+        // The cropping tool will reload with the new upscaled image
+      } else {
+        this.errorMessage =
+          'Failed to extract data from the barcode after multiple attempts. Please try uploading a clearer image.';
+        alert(this.errorMessage);
+
+        // Reset to allow the user to upload a new image
+        this.stepper.selectedIndex = 1; // Go back to upload back image step
+        this.needsCropping = false;
+        this.isCropping = false;
+        this.upscaleAttempt = 0; // Reset upscale attempts
+
+        // Reset upscale dimensions
+        this.upscaleWidth = 1920;
+        this.upscaleHeight = 1920;
+      }
+    }
+  }
+
+/**
+   * Upscales a base64 image to specified width and height, matching the user's upscaling logic.
+   * @param imageBase64 The base64 string of the image to upscale.
+   * @param width The target width for upscaling.
+   * @param height The target height for upscaling.
+   * @returns A Promise that resolves to the upscaled base64 image string.
+   */
+async upscaleImage(
+  imageBase64: string,
+  width: number,
+  height: number
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = imageBase64;
+    img.crossOrigin = 'Anonymous'; // To avoid CORS issues
+    img.onload = () => {
+      let canvas = document.createElement('canvas');
+      let ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject('Cannot get canvas context');
+        return;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      // Apply the same calculations as in your code
+      let imageWidth = canvas.width;
+      let imageHeight = img.height * (imageWidth / canvas.width);
+      let centerX = canvas.width / 2;
+      let centerY = canvas.height / 2;
+      let x = centerX - imageWidth / 2;
+      let y = centerY - imageHeight / 2;
+
+      ctx.drawImage(img, x, y, imageWidth, imageHeight);
+
+      let upscaledImage = canvas.toDataURL('image/png', 0.9);
+      resolve(upscaledImage);
+    };
+    img.onerror = (error) => reject(error);
+  });
+}
+  /**
+   * Image Validation
+   */
   validateImage(file: File): boolean {
     const validTypes = ['image/jpeg', 'image/png'];
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    const maxSize = 100 * 1024 * 1024; // 100MB
     if (!validTypes.includes(file.type)) {
       return false;
     }
@@ -151,73 +507,45 @@ export class StepperComponent implements OnInit {
     return true;
   }
 
-  // Submit and Process Data
-  async onSubmit() {
-    if (this.backImage) {
-      this.isProcessing = true;
-      this.errorMessage = null;
-      this.licenseData = null;
-  
-      try {
-        const barcodeText = await this.extractBarcodeData(this.backImage);
-        console.log(barcodeText, 'barcodeText');
-        this.licenseData = this.parseBarcodeData(barcodeText);
-        this.stepper.next(); // Navigate to the third step
-      } catch (error) {
-        console.error(error);
-        this.errorMessage =
-          'Failed to extract data from the barcode. Please ensure the image is clear and try again.';
-      } finally {
-        this.isProcessing = false;
-      }
-    } else {
-      alert('Please upload both front and back images.');
-    }
-  }
-  
-
-  // Extract Barcode Data using ZXing
-  async extractBarcodeData(file: File): Promise<string> {
+  /**
+   * Extract Barcode Data using ZXing from Base64 Image
+   */
+  async extractBarcodeData(base64Image: string): Promise<string> {
+    const file = this.base64ToFile(base64Image, 'back-image.png');
     const hints = new Map<DecodeHintType, any>();
     hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.PDF_417]);
 
     const codeReader = new BrowserMultiFormatReader(hints);
-    codeReader
-      .decodeFromImageUrl(createImageUrlFromFile(file))
-      .then((result: Result) => {
-        return result.getText();
-      })
-      .catch((error) => {
-        throw new Error('Barcode decoding failed.');
-      });
 
-    // Since decodeFromImage returns a Promise, we need to await it
     try {
       const result: Result = await codeReader.decodeFromImageUrl(
         createImageUrlFromFile(file)
       );
       return result.getText();
     } catch (error) {
+      console.log(error, 'extractBarcodeData');
       throw new Error('Barcode decoding failed.');
     }
   }
 
-  // Load Image as HTMLImageElement
-  loadImage(file: File): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = reader.result as string;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  /**
+   * Utility to convert base64 to File
+   */
+  base64ToFile(data: string, filename: string): File {
+    const arr = data.split(',');
+    const mime = arr[0].match(/:(.*?);/)![1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
   }
 
-  // Parse Barcode Data based on AAMVA Standards
+  /**
+   * Parse Barcode Data based on AAMVA Standards
+   */
   parseBarcodeData(rawData: string): any {
     const data: { [key: string]: any } = {};
 
@@ -288,7 +616,9 @@ export class StepperComponent implements OnInit {
     return data;
   }
 
-  // Format Date from YYMMDD to YYYY-MM-DD
+  /**
+   * Format Date from YYMMDD to YYYY-MM-DD
+   */
   formatDate(dateString: string): string {
     // Assuming the date is in YYMMDD format
     if (dateString.length === 6) {
@@ -300,7 +630,9 @@ export class StepperComponent implements OnInit {
     return dateString;
   }
 
-  // Copy JSON Data to Clipboard
+  /**
+   * Copy JSON Data to Clipboard
+   */
   copyToClipboard() {
     const jsonData = JSON.stringify(this.licenseData, null, 2);
     navigator.clipboard.writeText(jsonData).then(
@@ -313,7 +645,9 @@ export class StepperComponent implements OnInit {
     );
   }
 
-  // Download JSON Data as a File
+  /**
+   * Download JSON Data as a File
+   */
   downloadJSON() {
     const jsonData = JSON.stringify(this.licenseData, null, 2);
     const blob = new Blob([jsonData], { type: 'application/json' });
@@ -325,16 +659,27 @@ export class StepperComponent implements OnInit {
     window.URL.revokeObjectURL(url);
   }
 
-  // Retry Extraction
+  /**
+   * Retry Extraction
+   */
   retry() {
-    this.licenseData = null;
+    this.stepper.selectedIndex = 1; // Go back to the back image upload step
     this.errorMessage = null;
-    this.backForm.reset();
-    this.backImage = null;
-    this.backImagePreview = null;
+    this.isProcessing = false;
+    this.upscaleAttempt = 0; // Reset upscale attempts
+
+    // Reset processing states
+    this.isBackImageProcessing = false;
+    this.isCropping = false;
+    this.needsCropping = false;
+
+    // Reset upscale dimensions
+    this.upscaleWidth = 1920;
+    this.upscaleHeight = 1920;
   }
 }
 
+// Utility Function (Keep this outside the class)
 function createImageUrlFromFile(file: File): string {
   // Ensure the file is an image
   if (!file.type.startsWith('image/')) {
