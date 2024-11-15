@@ -123,3 +123,147 @@ image-cropper {
 .navigation-buttons button {
   /* If you want to add more specific styles, you can do so here */
 }
+
+
+
+
+.mobile-container {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 10px;
+}
+
+/* Mobile-first styles */
+@media screen and (max-width: 768px) {
+  .mobile-stepper {
+    width: 100%;
+  }
+
+  /* Adjust FilePond container for mobile */
+  ::ng-deep .filepond--root {
+    margin: 0;
+    max-width: 100%;
+  }
+
+  /* Make images responsive */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Adjust button groups for mobile */
+  .button-group,
+  .navigation-buttons,
+  .process-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  button {
+    width: 100%;
+    margin: 5px 0;
+  }
+
+  /* Adjust cropper for mobile */
+  image-cropper {
+    width: 100%;
+    height: auto;
+  }
+
+  /* Adjust pre tag for JSON display */
+  pre {
+    font-size: 14px;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+}
+
+/* Camera input styles */
+.camera-container {
+  width: 100%;
+  max-width: 100%;
+  margin: 10px 0;
+}
+
+.camera-button {
+  width: 100%;
+  padding: 15px;
+  margin: 10px 0;
+  background-color: #3f51b5;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+.mobile-container {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 10px;
+}
+
+/* Mobile-first styles */
+@media screen and (max-width: 768px) {
+  .mobile-stepper {
+    width: 100%;
+  }
+
+  /* Adjust FilePond container for mobile */
+  ::ng-deep .filepond--root {
+    margin: 0;
+    max-width: 100%;
+  }
+
+  /* Make images responsive */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Adjust button groups for mobile */
+  .button-group,
+  .navigation-buttons,
+  .process-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  button {
+    width: 100%;
+    margin: 5px 0;
+  }
+
+  /* Adjust cropper for mobile */
+  image-cropper {
+    width: 100%;
+    height: auto;
+  }
+
+  /* Adjust pre tag for JSON display */
+  pre {
+    font-size: 14px;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+}
+
+/* Camera input styles */
+.camera-container {
+  width: 100%;
+  max-width: 100%;
+  margin: 10px 0;
+}
+
+.camera-button {
+  width: 100%;
+  padding: 15px;
+  margin: 10px 0;
+  background-color: #3f51b5;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}

@@ -1,4 +1,5 @@
 // src/app/stepper/stepper.component.ts
+import * as exifr from 'exifr';
 
 import { Component, OnInit, ViewChild } from '@angular/core';
 import {
@@ -57,6 +58,11 @@ import { CommonModule } from '@angular/common';
   styleUrls: ['./stepper.component.css'],
 })
 export class StepperComponent implements OnInit {
+  //Mobile responsivity
+
+  isMobile: boolean = false;
+  hasCamera: boolean = false;
+
   frontForm: FormGroup;
   backForm: FormGroup;
   frontImage: File | null = null;
@@ -124,9 +130,74 @@ export class StepperComponent implements OnInit {
     this.backForm = this.fb.group({
       backImage: [null, Validators.required],
     });
+
+    // Check if device is mobile
+    this.isMobile =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      );
+
+    // Check if device has camera
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices
+        .getUserMedia({ video: true })
+        .then(() => (this.hasCamera = true))
+        .catch(() => (this.hasCamera = false));
+    }
   }
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    if (this.isMobile) {
+      this.frontPondOptions = {
+        ...this.frontPondOptions,
+        stylePanelAspectRatio: 0.75, // Portrait orientation
+        imagePreviewHeight: 160,
+        labelIdle: 'Tap to upload front of license',
+      };
+
+      this.backPondOptions = {
+        ...this.backPondOptions,
+        stylePanelAspectRatio: 0.75,
+        imagePreviewHeight: 160,
+        labelIdle: 'Tap to upload back of license',
+      };
+    }
+  }
+
+  async captureImage(type: 'front' | 'back'): Promise<void> {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      await video.play();
+
+      // Create canvas to capture frame
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d')?.drawImage(video, 0, 0);
+
+      // Convert to blob
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], `${type}-license.jpg`, {
+            type: 'image/jpeg',
+          });
+          if (type === 'front') {
+            this.onFrontImageAdded({ file: { file } });
+          } else {
+            this.onBackImageAdded({ file: { file } });
+          }
+        }
+      }, 'image/jpeg');
+
+      // Stop camera stream
+      stream.getTracks().forEach((track) => track.stop());
+    } catch (error) {
+      console.error('Camera error:', error);
+      alert('Failed to access camera. Please try uploading an image instead.');
+    }
+  }
 
   /**
    * Handles the addition of a front image file.
@@ -198,23 +269,30 @@ export class StepperComponent implements OnInit {
 
     try {
       // Try to read barcode without upscaling
-      const barcodeText = await this.extractBarcodeData(this.backImagePreview as string);
+      const barcodeText = await this.extractBarcodeData(
+        this.backImagePreview as string
+      );
       this.licenseData = this.parseBarcodeData(barcodeText);
       this.isProcessing = false;
       this.isBackImageProcessing = false;
-
+      console.log('License Data:', this.licenseData);
       // Proceed to final step
-      this.stepper.selectedIndex = 3; // Adjust index based on your steps
+      this.stepper.selectedIndex = 4; // Adjust index based on your steps
     } catch (error) {
-      console.warn('Initial barcode extraction failed. Attempting upscaling...');
+      console.warn(
+        'Initial barcode extraction failed. Attempting upscaling...'
+      );
       try {
         // Upscale the image once and try again
         await this.upscaleBackImage();
-        const barcodeText = await this.extractBarcodeData(this.backImagePreview as string);
+        const barcodeText = await this.extractBarcodeData(
+          this.backImagePreview as string
+        );
         this.licenseData = this.parseBarcodeData(barcodeText);
         this.isProcessing = false;
         this.isBackImageProcessing = false;
 
+        console.log('License Data in catch section:', this.licenseData);
         // Proceed to final step
         this.stepper.selectedIndex = 3; // Adjust index based on your steps
       } catch (error) {
@@ -246,7 +324,10 @@ export class StepperComponent implements OnInit {
     );
 
     // Update backImage and backImagePreview with upscaled image
-    this.backImage = this.base64ToFile(upscaledImage, 'upscaled-back-image.png');
+    this.backImage = this.base64ToFile(
+      upscaledImage,
+      'upscaled-back-image.png'
+    );
     this.backImagePreview = upscaledImage;
 
     // Update the backFiles array with the upscaled file
@@ -404,7 +485,9 @@ export class StepperComponent implements OnInit {
     this.isCroppedImageProcessing = true;
 
     try {
-      const barcodeText = await this.extractBarcodeData(this.backImagePreview as string);
+      const barcodeText = await this.extractBarcodeData(
+        this.backImagePreview as string
+      );
       this.licenseData = this.parseBarcodeData(barcodeText);
       this.isProcessing = false;
       this.isCroppedImageProcessing = false;
@@ -461,11 +544,13 @@ export class StepperComponent implements OnInit {
     width: number,
     height: number
   ): Promise<string> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const img = new Image();
       img.src = imageBase64;
       img.crossOrigin = 'Anonymous'; // To avoid CORS issues
-      img.onload = () => {
+      img.onload = async () => {
+        const orientation = await getOrientation(imageBase64);
+
         let canvas = document.createElement('canvas');
         let ctx = canvas.getContext('2d');
         if (!ctx) {
@@ -473,18 +558,58 @@ export class StepperComponent implements OnInit {
           return;
         }
 
-        canvas.width = width;
-        canvas.height = height;
+        // Adjust canvas size and transformations based on orientation
+        if (orientation > 4) {
+          canvas.width = height;
+          canvas.height = width;
+        } else {
+          canvas.width = width;
+          canvas.height = height;
+        }
 
-        // Apply the same calculations as in your code
-        let imageWidth = canvas.width;
-        let imageHeight = img.height * (imageWidth / canvas.width);
-        let centerX = canvas.width / 2;
-        let centerY = canvas.height / 2;
-        let x = centerX - imageWidth / 2;
-        let y = centerY - imageHeight / 2;
+        // Apply transformations based on orientation
+        switch (orientation) {
+          case 2:
+            // Horizontal flip
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+            break;
+          case 3:
+            // 180° rotate
+            ctx.translate(canvas.width, canvas.height);
+            ctx.rotate(Math.PI);
+            break;
+          case 4:
+            // Vertical flip
+            ctx.translate(0, canvas.height);
+            ctx.scale(1, -1);
+            break;
+          case 5:
+            // Vertical flip + 90° rotate right
+            ctx.rotate(0.5 * Math.PI);
+            ctx.scale(1, -1);
+            break;
+          case 6:
+            // 90° rotate right
+            ctx.translate(canvas.width, 0);
+            ctx.rotate(0.5 * Math.PI);
+            break;
+          case 7:
+            // Horizontal flip + 90° rotate right
+            ctx.translate(canvas.width, 0);
+            ctx.rotate(0.5 * Math.PI);
+            ctx.scale(-1, 1);
+            break;
+          case 8:
+            // 90° rotate left
+            ctx.translate(0, canvas.height);
+            ctx.rotate(-0.5 * Math.PI);
+            break;
+          default:
+            break;
+        }
 
-        ctx.drawImage(img, x, y, imageWidth, imageHeight);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
         let upscaledImage = canvas.toDataURL('image/png', 0.9);
         resolve(upscaledImage);
@@ -689,4 +814,17 @@ function createImageUrlFromFile(file: File): string {
 
   // Generate and return a temporary URL for the image file
   return URL.createObjectURL(file);
+}
+
+async function getOrientation(imageBase64: string): Promise<number> {
+  const base64Data = imageBase64.split(',')[1];
+  const byteCharacters = atob(base64Data);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  const blob = new Blob([byteArray], { type: 'image/jpeg' });
+  const tags = await exifr.parse(blob, ['Orientation']);
+  return tags?.Orientation || 1;
 }
