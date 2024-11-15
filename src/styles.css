@@ -1,15 +1,9 @@
-/* src/styles.css */
-
 /* General Body Styles */
 body {
   font-family: Roboto, Arial, sans-serif;
   background-color: #f5f5f5;
   margin: 0;
   padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
 }
 
 /* Header Styles */
@@ -68,7 +62,9 @@ image-cropper {
 }
 
 /* Image Preview Styles */
-img {
+.responsive-image {
+  max-width: 100%;
+  height: auto;
   margin-top: 20px;
   border: 1px solid #ccc;
   padding: 5px;
@@ -79,6 +75,7 @@ img {
 .navigation-buttons,
 .process-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 20px;
 }
@@ -93,18 +90,6 @@ img {
   justify-content: flex-start;
 }
 
-/* Differentiate Process Buttons */
-button.process-button {
-  background-color: #e0e0e0;
-  color: #000;
-}
-
-/* Differentiate Navigation Buttons */
-button.navigation-button {
-  background-color: #3f51b5;
-  color: #fff;
-}
-
 /* Ensure Image Cropper is Responsive */
 image-cropper {
   max-width: 100%;
@@ -112,158 +97,26 @@ image-cropper {
   margin: 0 auto;
 }
 
-/* Optional: Add distinct styles if needed */
-
-/* Example: Custom Styles for Process Buttons */
-.process-buttons button {
-  /* If you want to add more specific styles, you can do so here */
-}
-
-/* Example: Custom Styles for Navigation Buttons */
-.navigation-buttons button {
-  /* If you want to add more specific styles, you can do so here */
-}
-
-
-
-
-.mobile-container {
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 10px;
-}
-
-/* Mobile-first styles */
-@media screen and (max-width: 768px) {
-  .mobile-stepper {
-    width: 100%;
+/* Responsive Adjustments */
+@media (max-width: 600px) {
+  /* Adjust body padding for small screens */
+  body {
+    padding: 10px;
   }
 
-  /* Adjust FilePond container for mobile */
-  ::ng-deep .filepond--root {
-    margin: 0;
-    max-width: 100%;
+  /* Adjust stepper label font size */
+  .mat-step-label {
+    font-size: 14px;
   }
 
-  /* Make images responsive */
-  img {
-    max-width: 100%;
-    height: auto;
-  }
-
-  /* Adjust button groups for mobile */
-  .button-group,
+  /* Adjust button group alignment */
   .navigation-buttons,
   .process-buttons {
-    flex-direction: column;
-    width: 100%;
+    justify-content: center;
   }
 
-  button {
-    width: 100%;
-    margin: 5px 0;
+  /* Adjust image preview margins */
+  .responsive-image {
+    margin-top: 10px;
   }
-
-  /* Adjust cropper for mobile */
-  image-cropper {
-    width: 100%;
-    height: auto;
-  }
-
-  /* Adjust pre tag for JSON display */
-  pre {
-    font-size: 14px;
-    max-width: 100%;
-    overflow-x: auto;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-  }
-}
-
-/* Camera input styles */
-.camera-container {
-  width: 100%;
-  max-width: 100%;
-  margin: 10px 0;
-}
-
-.camera-button {
-  width: 100%;
-  padding: 15px;
-  margin: 10px 0;
-  background-color: #3f51b5;
-  color: white;
-  border: none;
-  border-radius: 4px;
-}
-.mobile-container {
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 10px;
-}
-
-/* Mobile-first styles */
-@media screen and (max-width: 768px) {
-  .mobile-stepper {
-    width: 100%;
-  }
-
-  /* Adjust FilePond container for mobile */
-  ::ng-deep .filepond--root {
-    margin: 0;
-    max-width: 100%;
-  }
-
-  /* Make images responsive */
-  img {
-    max-width: 100%;
-    height: auto;
-  }
-
-  /* Adjust button groups for mobile */
-  .button-group,
-  .navigation-buttons,
-  .process-buttons {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  button {
-    width: 100%;
-    margin: 5px 0;
-  }
-
-  /* Adjust cropper for mobile */
-  image-cropper {
-    width: 100%;
-    height: auto;
-  }
-
-  /* Adjust pre tag for JSON display */
-  pre {
-    font-size: 14px;
-    max-width: 100%;
-    overflow-x: auto;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-  }
-}
-
-/* Camera input styles */
-.camera-container {
-  width: 100%;
-  max-width: 100%;
-  margin: 10px 0;
-}
-
-.camera-button {
-  width: 100%;
-  padding: 15px;
-  margin: 10px 0;
-  background-color: #3f51b5;
-  color: white;
-  border: none;
-  border-radius: 4px;
 }

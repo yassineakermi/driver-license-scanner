@@ -1,4 +1,3 @@
-// src/app/stepper/stepper.component.ts
 import * as exifr from 'exifr';
 
 import { Component, OnInit, ViewChild } from '@angular/core';
@@ -10,12 +9,20 @@ import {
 } from '@angular/forms';
 
 // Angular Material Modules
-import { MatStepperModule } from '@angular/material/stepper';
+import { MatStepperModule, StepperOrientation } from '@angular/material/stepper';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatStepper } from '@angular/material/stepper';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+
+// Angular CDK for BreakpointObserver
+import {
+  BreakpointObserver,
+  Breakpoints,
+} from '@angular/cdk/layout';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 // ngx-filepond Modules
 import { FilePondComponent, FilePondModule } from 'ngx-filepond';
@@ -58,11 +65,6 @@ import { CommonModule } from '@angular/common';
   styleUrls: ['./stepper.component.css'],
 })
 export class StepperComponent implements OnInit {
-  //Mobile responsivity
-
-  isMobile: boolean = false;
-  hasCamera: boolean = false;
-
   frontForm: FormGroup;
   backForm: FormGroup;
   frontImage: File | null = null;
@@ -123,7 +125,13 @@ export class StepperComponent implements OnInit {
       'Drag & Drop your back license or <span class="filepond--label-action">Browse</span>',
   };
 
-  constructor(private fb: FormBuilder) {
+  // Stepper orientation observable
+  stepperOrientation: Observable<StepperOrientation>;
+
+  constructor(
+    private fb: FormBuilder,
+    private breakpointObserver: BreakpointObserver
+  ) {
     this.frontForm = this.fb.group({
       frontImage: [null, Validators.required],
     });
@@ -131,73 +139,12 @@ export class StepperComponent implements OnInit {
       backImage: [null, Validators.required],
     });
 
-    // Check if device is mobile
-    this.isMobile =
-      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-        navigator.userAgent
-      );
-
-    // Check if device has camera
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices
-        .getUserMedia({ video: true })
-        .then(() => (this.hasCamera = true))
-        .catch(() => (this.hasCamera = false));
-    }
+    this.stepperOrientation = this.breakpointObserver
+      .observe([Breakpoints.HandsetPortrait])
+      .pipe(map(({ matches }) => (matches ? 'vertical' : 'horizontal')));
   }
 
-  ngOnInit(): void {
-    if (this.isMobile) {
-      this.frontPondOptions = {
-        ...this.frontPondOptions,
-        stylePanelAspectRatio: 0.75, // Portrait orientation
-        imagePreviewHeight: 160,
-        labelIdle: 'Tap to upload front of license',
-      };
-
-      this.backPondOptions = {
-        ...this.backPondOptions,
-        stylePanelAspectRatio: 0.75,
-        imagePreviewHeight: 160,
-        labelIdle: 'Tap to upload back of license',
-      };
-    }
-  }
-
-  async captureImage(type: 'front' | 'back'): Promise<void> {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      await video.play();
-
-      // Create canvas to capture frame
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext('2d')?.drawImage(video, 0, 0);
-
-      // Convert to blob
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const file = new File([blob], `${type}-license.jpg`, {
-            type: 'image/jpeg',
-          });
-          if (type === 'front') {
-            this.onFrontImageAdded({ file: { file } });
-          } else {
-            this.onBackImageAdded({ file: { file } });
-          }
-        }
-      }, 'image/jpeg');
-
-      // Stop camera stream
-      stream.getTracks().forEach((track) => track.stop());
-    } catch (error) {
-      console.error('Camera error:', error);
-      alert('Failed to access camera. Please try uploading an image instead.');
-    }
-  }
+  ngOnInit(): void {}
 
   /**
    * Handles the addition of a front image file.
