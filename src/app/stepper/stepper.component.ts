@@ -43,8 +43,8 @@ import {
   Result,
 } from '@zxing/library';
 
-// Import ngx-image-cropper (no longer needed)
-// import { ImageCropperComponent, ImageCroppedEvent } from 'ngx-image-cropper';
+// Import ngx-image-cropper
+import { ImageCropperComponent, ImageCroppedEvent } from 'ngx-image-cropper';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -59,7 +59,7 @@ import { CommonModule } from '@angular/common';
     MatProgressBarModule,
     FilePondModule,
     ReactiveFormsModule,
-    // ImageCropperComponent, // Remove this import
+    ImageCropperComponent, // Re-add this import
   ],
   templateUrl: './stepper.component.html',
   styleUrls: ['./stepper.component.css'],
@@ -69,10 +69,10 @@ export class StepperComponent implements OnInit {
   backForm: FormGroup;
   frontImage: File | null = null;
   backImage: File | undefined = undefined;
-  frontImagePreview: string | ArrayBuffer | null = null;
-  backImagePreview: string | ArrayBuffer | null = null;
-  originalBackImagePreview: string | ArrayBuffer | null = null; // Store original back image
-
+  frontImagePreview: string | undefined = undefined;
+  backImagePreview: string | undefined = undefined;
+  originalBackImagePreview: string | undefined = undefined;
+  
   licenseData: any = null;
   isProcessing: boolean = false;
   errorMessage: string | null = null;
@@ -94,6 +94,12 @@ export class StepperComponent implements OnInit {
   // Upscaling dimensions
   upscaleWidth: number = 1920; // Initial upscale width
   upscaleHeight: number = 1920; // Initial upscale height
+
+  // Cropping properties
+  showCropButton: boolean = false;
+  isCropping: boolean = false;
+  croppedBackImage: string = '';
+  croppedBackImageBlob: Blob | null = null;
 
   // FilePond Options
   frontPondOptions: any = {
@@ -150,7 +156,7 @@ export class StepperComponent implements OnInit {
 
       const reader = new FileReader();
       reader.onload = () => {
-        this.frontImagePreview = reader.result;
+        this.frontImagePreview = reader.result as string;
       };
       reader.readAsDataURL(file);
     } else {
@@ -176,7 +182,7 @@ export class StepperComponent implements OnInit {
 
       const reader = new FileReader();
       reader.onload = () => {
-        this.backImagePreview = reader.result;
+        this.backImagePreview = reader.result as string;
         this.originalBackImagePreview = this.backImagePreview; // Store original
         this.isBackImageProcessing = false;
         this.errorMessage = null;
@@ -202,6 +208,7 @@ export class StepperComponent implements OnInit {
     this.isProcessing = true;
     this.isBackImageProcessing = true;
     this.errorMessage = null;
+    this.showCropButton = false; // Reset crop button visibility
 
     try {
       // Try to read barcode without upscaling
@@ -232,14 +239,13 @@ export class StepperComponent implements OnInit {
         // Proceed to final step
         this.stepper.selectedIndex = 2; // Adjust index based on your steps
       } catch (error) {
-        // If still fails, inform the user
+        // If still fails, show the crop button
         console.error('Barcode extraction failed after upscaling:', error);
         this.isProcessing = false;
         this.isBackImageProcessing = false;
+        this.showCropButton = true;
         this.errorMessage =
-          'Failed to extract data from the barcode. Please try uploading a clearer image.';
-        alert(this.errorMessage);
-        // Allow the user to retry
+          'Failed to extract data from the barcode. You can try cropping the barcode area.';
       }
     }
   }
@@ -278,7 +284,7 @@ export class StepperComponent implements OnInit {
   onFrontImageRemoved(event: any) {
     // Clear the front image properties
     this.frontImage = null;
-    this.frontImagePreview = null;
+    this.frontImagePreview = undefined;
 
     // Clear the frontFiles array
     this.frontFiles = [];
@@ -294,8 +300,8 @@ export class StepperComponent implements OnInit {
   onBackImageRemoved(event: any) {
     // Clear the back image properties
     this.backImage = undefined;
-    this.backImagePreview = null;
-    this.originalBackImagePreview = null;
+    this.backImagePreview = undefined;
+    this.originalBackImagePreview = undefined;
 
     // Clear the backFiles array
     this.backFiles = [];
@@ -309,6 +315,7 @@ export class StepperComponent implements OnInit {
     // Reset processing states
     this.isBackImageProcessing = false;
     this.errorMessage = null;
+    this.showCropButton = false;
 
     // Reset upscale dimensions
     this.upscaleWidth = 1920;
@@ -320,6 +327,69 @@ export class StepperComponent implements OnInit {
    */
   onBackImageNext() {
     this.processBackImage();
+  }
+
+  /**
+   * Start cropping process
+   */
+  startCropping() {
+    this.isCropping = true;
+    this.errorMessage = null;
+    this.showCropButton = false;
+  }
+
+  /**
+   * Handles the image cropped event from the image cropper.
+   * @param event The ImageCroppedEvent containing the cropped image blob.
+   */
+  onBackImageCropped(event: ImageCroppedEvent) {
+    this.croppedBackImageBlob = event.blob ?? null;
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      this.croppedBackImage = reader.result as string;
+    };
+
+    if (event.blob) {
+      reader.readAsDataURL(event.blob);
+    }
+  }
+
+  /**
+   * Apply the cropped image and retry barcode extraction
+   */
+  async applyCroppedImage() {
+    if (this.croppedBackImageBlob) {
+      // Create a File from the Blob
+      const fileName = 'cropped-back-image.png';
+      const croppedFile = new File([this.croppedBackImageBlob], fileName, {
+        type: 'image/png',
+      });
+
+      // Update backImage and backImagePreview
+      this.backImage = croppedFile;
+      this.backImagePreview = this.croppedBackImage;
+
+      // Update the files in FilePond
+      this.backFiles = [croppedFile];
+
+      this.isCropping = false; // Hide the cropping tool
+
+      // Retry barcode extraction with the cropped image
+      await this.processBackImage();
+    } else {
+      alert('No cropped image available.');
+    }
+  }
+
+  /**
+   * Cancel cropping
+   */
+  cancelCropping() {
+    this.isCropping = false;
+    this.croppedBackImage = '';
+    this.croppedBackImageBlob = null;
+    this.showCropButton = true;
   }
 
   /**
@@ -586,6 +656,8 @@ export class StepperComponent implements OnInit {
 
     // Reset processing states
     this.isBackImageProcessing = false;
+    this.isCropping = false;
+    this.showCropButton = false;
 
     // Reset upscale dimensions
     this.upscaleWidth = 1920;

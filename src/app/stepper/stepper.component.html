@@ -74,6 +74,56 @@
           <p style="color: red">{{ errorMessage }}</p>
         </div>
 
+        <!-- Show Crop Button if barcode extraction fails -->
+        <div *ngIf="showCropButton && !isCropping" style="margin-top: 20px">
+          <button mat-raised-button color="primary" (click)="startCropping()">
+            Start Cropping
+          </button>
+        </div>
+
+        <!-- Cropping Tool -->
+        <div *ngIf="isCropping" style="margin-top: 20px">
+          <p>Please select the barcode area to improve scanning.</p>
+          <image-cropper
+          
+            [imageBase64]="backImagePreview"
+            [maintainAspectRatio]="false"
+            format="png"
+            [imageQuality]="1"
+            (imageCropped)="onBackImageCropped($event)"
+          ></image-cropper>
+
+          <!-- Cropped Image Preview -->
+          <div *ngIf="croppedBackImage" style="margin-top: 20px">
+            <p>Cropped Image Preview:</p>
+            <img
+              [src]="croppedBackImage"
+              alt="Cropped Back Image"
+              class="responsive-image"
+            />
+          </div>
+
+          <div class="process-buttons">
+            <button
+              mat-raised-button
+              color="primary"
+              type="button"
+              (click)="applyCroppedImage()"
+              style="margin-right: 10px"
+            >
+              Apply Cropped Image
+            </button>
+            <button
+              mat-raised-button
+              color="warn"
+              type="button"
+              (click)="cancelCropping()"
+            >
+              Cancel Cropping
+            </button>
+          </div>
+        </div>
+
         <div class="navigation-buttons">
           <button
             mat-raised-button
@@ -86,7 +136,7 @@
           <button
             mat-raised-button
             color="primary"
-            [disabled]="!backForm.valid || isProcessing"
+            [disabled]="!backForm.valid || isProcessing || isCropping"
             (click)="onBackImageNext()"
           >
             Next
