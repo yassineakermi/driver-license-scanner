@@ -47,13 +47,6 @@ button.mat-raised-button:hover {
   padding-top: 25px;
 }
 
-/* Image Cropper Styles */
-image-cropper {
-  max-width: 100%;
-  display: block;
-  margin: 0 auto;
-}
-
 /* Additional Styles for Stepper Component */
 
 /* Margins for Form Fields */
@@ -72,8 +65,7 @@ image-cropper {
 
 /* Button Group Styles Specific to Stepper */
 .button-group,
-.navigation-buttons,
-.process-buttons {
+.navigation-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -83,18 +75,6 @@ image-cropper {
 /* Navigation Buttons Alignment */
 .navigation-buttons {
   justify-content: flex-end;
-}
-
-/* Process Buttons Alignment */
-.process-buttons {
-  justify-content: flex-start;
-}
-
-/* Ensure Image Cropper is Responsive */
-image-cropper {
-  max-width: 100%;
-  display: block;
-  margin: 0 auto;
 }
 
 /* Responsive Adjustments */
@@ -110,13 +90,20 @@ image-cropper {
   }
 
   /* Adjust button group alignment */
-  .navigation-buttons,
-  .process-buttons {
-    justify-content: center;
+  .navigation-buttons {
+    margin-bottom: 16px;
   }
 
   /* Adjust image preview margins */
   .responsive-image {
     margin-top: 10px;
+  }
+
+  .mat-vertical-content {
+    padding: 0px !important;
+  }
+
+  .mat-vertical-content-container {
+    margin-left: 0px !important;
   }
 }

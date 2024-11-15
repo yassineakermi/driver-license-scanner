@@ -9,20 +9,20 @@ import {
 } from '@angular/forms';
 
 // Angular Material Modules
-import { MatStepperModule, StepperOrientation } from '@angular/material/stepper';
+import {
+  MatStepperModule,
+  MatStepper,
+  StepperOrientation,
+} from '@angular/material/stepper';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatStepper } from '@angular/material/stepper';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 
 // Angular CDK for BreakpointObserver
-import {
-  BreakpointObserver,
-  Breakpoints,
-} from '@angular/cdk/layout';
+import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, startWith } from 'rxjs/operators';
 
 // ngx-filepond Modules
 import { FilePondComponent, FilePondModule } from 'ngx-filepond';
@@ -43,8 +43,8 @@ import {
   Result,
 } from '@zxing/library';
 
-// Import ngx-image-cropper
-import { ImageCropperComponent, ImageCroppedEvent } from 'ngx-image-cropper';
+// Import ngx-image-cropper (no longer needed)
+// import { ImageCropperComponent, ImageCroppedEvent } from 'ngx-image-cropper';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -59,7 +59,7 @@ import { CommonModule } from '@angular/common';
     MatProgressBarModule,
     FilePondModule,
     ReactiveFormsModule,
-    ImageCropperComponent, // Ensure this is imported
+    // ImageCropperComponent, // Remove this import
   ],
   templateUrl: './stepper.component.html',
   styleUrls: ['./stepper.component.css'],
@@ -73,17 +73,10 @@ export class StepperComponent implements OnInit {
   backImagePreview: string | ArrayBuffer | null = null;
   originalBackImagePreview: string | ArrayBuffer | null = null; // Store original back image
 
-  needsCropping: boolean = false; // Controls whether the cropping step is displayed
-
   licenseData: any = null;
   isProcessing: boolean = false;
   errorMessage: string | null = null;
   @ViewChild('stepper') stepper!: MatStepper;
-
-  // Cropping properties
-  croppedBackImage: string = '';
-  croppedBackImageBlob: Blob | null = null; // To store the cropped image blob
-  isCropping: boolean = false; // Manage cropping state
 
   @ViewChild('backPond') backPondComponent!: FilePondComponent; // Reference to FilePond
 
@@ -97,10 +90,6 @@ export class StepperComponent implements OnInit {
 
   // Processing states
   isBackImageProcessing: boolean = false;
-
-  isCroppedImageAvailable: boolean = false;
-  isCroppedImageProcessing: boolean = false;
-  isCroppingToolReady: boolean = false;
 
   // Upscaling dimensions
   upscaleWidth: number = 1920; // Initial upscale width
@@ -224,7 +213,7 @@ export class StepperComponent implements OnInit {
       this.isBackImageProcessing = false;
       console.log('License Data:', this.licenseData);
       // Proceed to final step
-      this.stepper.selectedIndex = 4; // Adjust index based on your steps
+      this.stepper.selectedIndex = 2; // Adjust index based on your steps
     } catch (error) {
       console.warn(
         'Initial barcode extraction failed. Attempting upscaling...'
@@ -239,23 +228,24 @@ export class StepperComponent implements OnInit {
         this.isProcessing = false;
         this.isBackImageProcessing = false;
 
-        console.log('License Data in catch section:', this.licenseData);
+        console.log('License Data after upscaling:', this.licenseData);
         // Proceed to final step
-        this.stepper.selectedIndex = 3; // Adjust index based on your steps
+        this.stepper.selectedIndex = 2; // Adjust index based on your steps
       } catch (error) {
-        // If still fails, proceed to cropping step without alerting the user
+        // If still fails, inform the user
         console.error('Barcode extraction failed after upscaling:', error);
         this.isProcessing = false;
         this.isBackImageProcessing = false;
-        this.needsCropping = true;
-        // Do not start cropping automatically
-        this.stepper.selectedIndex = 2; // Move to cropping step
+        this.errorMessage =
+          'Failed to extract data from the barcode. Please try uploading a clearer image.';
+        alert(this.errorMessage);
+        // Allow the user to retry
       }
     }
   }
 
   /**
-   * Upscales the back image and updates the preview using the provided upscaling logic.
+   * Upscales the back image and updates the preview using the upscaling logic.
    */
   async upscaleBackImage() {
     if (!this.originalBackImagePreview) return;
@@ -313,14 +303,6 @@ export class StepperComponent implements OnInit {
     // Reset the back form control
     this.backForm.patchValue({ backImage: null });
 
-    // If cropping was active, cancel it
-    if (this.isCropping) {
-      this.cancelCropping();
-    }
-
-    // Reset needsCropping flag
-    this.needsCropping = false;
-
     // Reset upscale attempts
     this.upscaleAttempt = 0;
 
@@ -340,147 +322,8 @@ export class StepperComponent implements OnInit {
     this.processBackImage();
   }
 
-  // Start Cropping
-  async startCropping() {
-    this.isCropping = true;
-    this.isCroppingToolReady = false;
-
-    // Set upscale dimensions to maximum desired values
-    this.upscaleWidth = 3000;
-    this.upscaleHeight = 3000;
-
-    // Upscale the back image before opening the cropping tool
-    await this.upscaleBackImage();
-  }
-
-  // Cancel Cropping
-  cancelCropping() {
-    this.isCropping = false;
-    this.croppedBackImage = '';
-    this.croppedBackImageBlob = null;
-
-    // Reset processing states
-    this.isCroppedImageAvailable = false;
-    this.isCroppedImageProcessing = false;
-    this.upscaleAttempt = 0;
-    this.errorMessage = null;
-
-    // Reset upscale dimensions
-    this.upscaleWidth = 1920;
-    this.upscaleHeight = 1920;
-  }
-
   /**
-   * Handles the image loaded event from the image cropper.
-   */
-  onImageLoaded() {
-    this.isCroppingToolReady = true;
-  }
-
-  /**
-   * Handles the image cropped event from the image cropper.
-   * @param event The ImageCroppedEvent containing the cropped image blob.
-   */
-  onBackImageCropped(event: ImageCroppedEvent) {
-    this.croppedBackImageBlob = event.blob ?? null;
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      this.croppedBackImage = reader.result as string;
-      console.log('Cropped Image Base64:', this.croppedBackImage);
-      this.isCroppedImageAvailable = true;
-    };
-
-    if (event.blob) {
-      reader.readAsDataURL(event.blob);
-    }
-  }
-
-  /**
-   * Applies the cropped image.
-   */
-  applyCroppedImage() {
-    if (this.croppedBackImageBlob) {
-      // Create a File from the Blob
-      const fileName = 'cropped-back-image.png';
-      const croppedFile = new File([this.croppedBackImageBlob], fileName, {
-        type: 'image/png',
-      });
-
-      // Update backImage and backImagePreview
-      this.backImage = croppedFile;
-      this.backImagePreview = this.croppedBackImage;
-
-      // Update the files in FilePond
-      this.backFiles = [croppedFile];
-
-      this.errorMessage = null;
-    } else {
-      alert('No cropped image available.');
-    }
-  }
-
-  /**
-   * Handles the 'Next' button click on the 'Crop Image' step.
-   */
-  async onCroppedImageNext() {
-    if (!this.croppedBackImage) {
-      alert('Please apply the cropped image first.');
-      return;
-    }
-    this.isProcessing = true;
-    this.isCroppedImageProcessing = true;
-
-    try {
-      const barcodeText = await this.extractBarcodeData(
-        this.backImagePreview as string
-      );
-      this.licenseData = this.parseBarcodeData(barcodeText);
-      this.isProcessing = false;
-      this.isCroppedImageProcessing = false;
-
-      // Proceed to final step
-      this.stepper.selectedIndex = 3; // Adjust index based on your steps
-    } catch (error) {
-      console.error('Barcode extraction failed after cropping:', error);
-      this.isProcessing = false;
-      this.isCroppedImageProcessing = false;
-      this.upscaleAttempt++;
-
-      if (this.upscaleAttempt < this.maxUpscaleAttempts) {
-        // Retry extraction without alerting the user
-        // Upscale the image further
-        this.upscaleWidth += 500;
-        this.upscaleHeight += 500;
-        await this.upscaleBackImage();
-
-        // Reset cropping tool
-        this.isCroppingToolReady = false;
-        this.isCroppedImageAvailable = false;
-        this.croppedBackImage = '';
-        this.croppedBackImageBlob = null;
-
-        // The cropping tool will reload with the new upscaled image
-      } else {
-        this.errorMessage =
-          'Failed to extract data from the barcode after multiple attempts. Please try uploading a clearer image.';
-        alert(this.errorMessage);
-
-        // Reset to allow the user to upload a new image
-        this.stepper.selectedIndex = 1; // Go back to upload back image step
-        this.needsCropping = false;
-        this.isCropping = false;
-        this.upscaleAttempt = 0; // Reset upscale attempts
-
-        // Reset upscale dimensions
-        this.upscaleWidth = 1920;
-        this.upscaleHeight = 1920;
-      }
-    }
-  }
-
-  /**
-   * Upscales a base64 image to specified width and height, matching the user's upscaling logic.
+   * Upscales a base64 image to specified width and height.
    * @param imageBase64 The base64 string of the image to upscale.
    * @param width The target width for upscaling.
    * @param height The target height for upscaling.
@@ -743,8 +586,6 @@ export class StepperComponent implements OnInit {
 
     // Reset processing states
     this.isBackImageProcessing = false;
-    this.isCropping = false;
-    this.needsCropping = false;
 
     // Reset upscale dimensions
     this.upscaleWidth = 1920;

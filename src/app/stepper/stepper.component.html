@@ -1,5 +1,9 @@
 <div>
-  <mat-stepper [linear]="true" [orientation]="(stepperOrientation | async) || 'horizontal'" #stepper>
+  <mat-stepper
+    [linear]="true"
+    [orientation]="(stepperOrientation | async) || 'horizontal'"
+    #stepper
+  >
     <!-- Step 1: Upload Front Image -->
     <mat-step [stepControl]="frontForm">
       <form [formGroup]="frontForm">
@@ -54,7 +58,11 @@
         <!-- Back Image Preview -->
         <div *ngIf="backImagePreview" style="margin-top: 20px">
           <p>Back Image Preview:</p>
-          <img [src]="backImagePreview" alt="Back Image Preview" class="responsive-image" />
+          <img
+            [src]="backImagePreview"
+            alt="Back Image Preview"
+            class="responsive-image"
+          />
         </div>
 
         <div *ngIf="isProcessing" style="margin-bottom: 20px">
@@ -87,100 +95,7 @@
       </form>
     </mat-step>
 
-    <!-- Step 3: Crop Image -->
-    <mat-step [optional]="!needsCropping" [completed]="!needsCropping">
-      <ng-template matStepLabel>Crop Image</ng-template>
-
-      <div *ngIf="needsCropping">
-        <!-- Cropping content -->
-        <div style="margin-top: 20px">
-          <p>
-            We were unable to read the barcode, please correctly select where the
-            barcode is.
-          </p>
-          <!-- Show upscaled image -->
-          <div *ngIf="backImagePreview" style="margin-top: 20px">
-            <img
-              [src]="backImagePreview"
-              alt="Upscaled Back Image"
-              class="responsive-image"
-            />
-          </div>
-
-          <!-- Button to start selecting (cropping) -->
-          <button mat-raised-button color="primary" (click)="startCropping()">
-            Start Selecting
-          </button>
-
-          <!-- Display cropping tool only if isCropping is true -->
-          <div *ngIf="isCropping" style="margin-top: 20px">
-            <image-cropper
-              [imageFile]="backImage"
-              [maintainAspectRatio]="true"
-              [aspectRatio]="1.58 / 1"
-              format="png"
-              [imageQuality]="1"
-              [resizeToWidth]="3000"
-              (imageCropped)="onBackImageCropped($event)"
-              (imageLoaded)="onImageLoaded()"
-            ></image-cropper>
-
-            <!-- Cropped Image Preview -->
-            <div *ngIf="croppedBackImage" style="margin-top: 20px">
-              <p>Cropped Image Preview:</p>
-              <img
-                [src]="croppedBackImage"
-                alt="Cropped Back Image"
-                class="responsive-image"
-              />
-            </div>
-
-            <div class="process-buttons">
-              <button
-                mat-raised-button
-                color="primary"
-                type="button"
-                [disabled]="!isCroppingToolReady || !isCroppedImageAvailable"
-                (click)="applyCroppedImage()"
-                style="margin-right: 10px"
-              >
-                Apply Cropped Image
-              </button>
-              <button
-                mat-raised-button
-                color="warn"
-                type="button"
-                (click)="cancelCropping()"
-              >
-                Cancel Cropping
-              </button>
-            </div>
-          </div>
-
-          <!-- Show navigation buttons -->
-          <div class="navigation-buttons">
-            <button
-              mat-raised-button
-              color="warn"
-              matStepperPrevious
-              style="margin-right: 10px"
-            >
-              Back
-            </button>
-            <button
-              mat-raised-button
-              color="primary"
-              [disabled]="!isCroppedImageAvailable || isProcessing"
-              (click)="onCroppedImageNext()"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      </div>
-    </mat-step>
-
-    <!-- Step 4: Display License Data -->
+    <!-- Step 3: Display License Data -->
     <mat-step>
       <ng-template matStepLabel>Review License Data</ng-template>
 
