@@ -1,4 +1,6 @@
-import * as exifr from 'exifr';
+import { parse } from 'exifr';
+import { HttpClient, HttpClientModule } from '@angular/common/http';
+import { provideHttpClient } from '@angular/common/http';
 
 import { Component, OnInit, ViewChild } from '@angular/core';
 import {
@@ -21,7 +23,7 @@ import { MatSelectModule } from '@angular/material/select';
 
 // Angular CDK for BreakpointObserver
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
-import { Observable } from 'rxjs';
+import { firstValueFrom, Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
 
 // ngx-filepond Modules
@@ -43,8 +45,10 @@ import {
   Result,
 } from '@zxing/library';
 
-// Import ngx-image-cropper
-import { ImageCropperComponent, ImageCroppedEvent } from 'ngx-image-cropper';
+// Import ngx-scanner
+import { ZXingScannerModule } from '@zxing/ngx-scanner';
+
+// Import CommonModule
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -59,7 +63,8 @@ import { CommonModule } from '@angular/common';
     MatProgressBarModule,
     FilePondModule,
     ReactiveFormsModule,
-    ImageCropperComponent, // Re-add this import
+    HttpClientModule,
+    ZXingScannerModule, // Add this
   ],
   templateUrl: './stepper.component.html',
   styleUrls: ['./stepper.component.css'],
@@ -71,35 +76,22 @@ export class StepperComponent implements OnInit {
   backImage: File | undefined = undefined;
   frontImagePreview: string | undefined = undefined;
   backImagePreview: string | undefined = undefined;
-  originalBackImagePreview: string | undefined = undefined;
-  
   licenseData: any = null;
-  isProcessing: boolean = false;
-  errorMessage: string | null = null;
   @ViewChild('stepper') stepper!: MatStepper;
-
-  @ViewChild('backPond') backPondComponent!: FilePondComponent; // Reference to FilePond
 
   // FilePond Files Arrays
   backFiles: any[] = []; // For back image files
   frontFiles: File[] = []; // For front image files
 
-  // Upscaling attempts
-  upscaleAttempt: number = 0;
-  maxUpscaleAttempts: number = 3; // Allow up to 3 attempts
-
-  // Processing states
-  isBackImageProcessing: boolean = false;
-
-  // Upscaling dimensions
-  upscaleWidth: number = 1920; // Initial upscale width
-  upscaleHeight: number = 1920; // Initial upscale height
-
-  // Cropping properties
-  showCropButton: boolean = false;
-  isCropping: boolean = false;
-  croppedBackImage: string = '';
-  croppedBackImageBlob: Blob | null = null;
+  // Barcode scanning properties
+  availableDevices: MediaDeviceInfo[] = [];
+  currentDevice: MediaDeviceInfo | undefined;
+  hasDevices: boolean = false;
+  hasPermission: boolean = false;
+  scanResult: string = '';
+  formatsEnabled: BarcodeFormat[] = [BarcodeFormat.PDF_417];
+  errorMessage: string | null = null;
+  isScanning: boolean = true;
 
   // FilePond Options
   frontPondOptions: any = {
@@ -125,7 +117,8 @@ export class StepperComponent implements OnInit {
 
   constructor(
     private fb: FormBuilder,
-    private breakpointObserver: BreakpointObserver
+    private breakpointObserver: BreakpointObserver,
+    private http: HttpClient
   ) {
     this.frontForm = this.fb.group({
       frontImage: [null, Validators.required],
@@ -169,7 +162,6 @@ export class StepperComponent implements OnInit {
 
   /**
    * Handles the addition of a back image file.
-   * Sets up the image and its preview but does not process it yet.
    */
   onBackImageAdded(event: any) {
     const file: File = event.file.file;
@@ -183,10 +175,6 @@ export class StepperComponent implements OnInit {
       const reader = new FileReader();
       reader.onload = () => {
         this.backImagePreview = reader.result as string;
-        this.originalBackImagePreview = this.backImagePreview; // Store original
-        this.isBackImageProcessing = false;
-        this.errorMessage = null;
-        this.upscaleAttempt = 0; // Reset attempts on new image
       };
       reader.readAsDataURL(file);
     } else {
@@ -198,88 +186,7 @@ export class StepperComponent implements OnInit {
   }
 
   /**
-   * Processes the back image when the user clicks 'Next' after uploading back image.
-   */
-  async processBackImage() {
-    if (!this.backImagePreview) {
-      alert('Please upload the back image first.');
-      return;
-    }
-    this.isProcessing = true;
-    this.isBackImageProcessing = true;
-    this.errorMessage = null;
-    this.showCropButton = false; // Reset crop button visibility
-
-    try {
-      // Try to read barcode without upscaling
-      const barcodeText = await this.extractBarcodeData(
-        this.backImagePreview as string
-      );
-      this.licenseData = this.parseBarcodeData(barcodeText);
-      this.isProcessing = false;
-      this.isBackImageProcessing = false;
-      console.log('License Data:', this.licenseData);
-      // Proceed to final step
-      this.stepper.selectedIndex = 2; // Adjust index based on your steps
-    } catch (error) {
-      console.warn(
-        'Initial barcode extraction failed. Attempting upscaling...'
-      );
-      try {
-        // Upscale the image once and try again
-        await this.upscaleBackImage();
-        const barcodeText = await this.extractBarcodeData(
-          this.backImagePreview as string
-        );
-        this.licenseData = this.parseBarcodeData(barcodeText);
-        this.isProcessing = false;
-        this.isBackImageProcessing = false;
-
-        console.log('License Data after upscaling:', this.licenseData);
-        // Proceed to final step
-        this.stepper.selectedIndex = 2; // Adjust index based on your steps
-      } catch (error) {
-        // If still fails, show the crop button
-        console.error('Barcode extraction failed after upscaling:', error);
-        this.isProcessing = false;
-        this.isBackImageProcessing = false;
-        this.showCropButton = true;
-        this.errorMessage =
-          'Failed to extract data from the barcode. You can try cropping the barcode area.';
-      }
-    }
-  }
-
-  /**
-   * Upscales the back image and updates the preview using the upscaling logic.
-   */
-  async upscaleBackImage() {
-    if (!this.originalBackImagePreview) return;
-
-    // Set upscale dimensions to maximum desired values
-    this.upscaleWidth = 3000;
-    this.upscaleHeight = 3000;
-
-    const upscaledImage = await this.upscaleImage(
-      this.originalBackImagePreview as string,
-      this.upscaleWidth,
-      this.upscaleHeight
-    );
-
-    // Update backImage and backImagePreview with upscaled image
-    this.backImage = this.base64ToFile(
-      upscaledImage,
-      'upscaled-back-image.png'
-    );
-    this.backImagePreview = upscaledImage;
-
-    // Update the backFiles array with the upscaled file
-    this.backFiles = [this.backImage];
-  }
-
-  /**
    * Handles the removal of the front image.
-   * Clears the preview and resets the form control.
    */
   onFrontImageRemoved(event: any) {
     // Clear the front image properties
@@ -295,187 +202,24 @@ export class StepperComponent implements OnInit {
 
   /**
    * Handles the removal of the back image.
-   * Clears the preview and resets the form control.
    */
   onBackImageRemoved(event: any) {
     // Clear the back image properties
     this.backImage = undefined;
     this.backImagePreview = undefined;
-    this.originalBackImagePreview = undefined;
 
     // Clear the backFiles array
     this.backFiles = [];
 
     // Reset the back form control
     this.backForm.patchValue({ backImage: null });
-
-    // Reset upscale attempts
-    this.upscaleAttempt = 0;
-
-    // Reset processing states
-    this.isBackImageProcessing = false;
-    this.errorMessage = null;
-    this.showCropButton = false;
-
-    // Reset upscale dimensions
-    this.upscaleWidth = 1920;
-    this.upscaleHeight = 1920;
   }
 
   /**
    * Handles the 'Next' button click on the 'Upload Back Image' step.
    */
   onBackImageNext() {
-    this.processBackImage();
-  }
-
-  /**
-   * Start cropping process
-   */
-  startCropping() {
-    this.isCropping = true;
-    this.errorMessage = null;
-    this.showCropButton = false;
-  }
-
-  /**
-   * Handles the image cropped event from the image cropper.
-   * @param event The ImageCroppedEvent containing the cropped image blob.
-   */
-  onBackImageCropped(event: ImageCroppedEvent) {
-    this.croppedBackImageBlob = event.blob ?? null;
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      this.croppedBackImage = reader.result as string;
-    };
-
-    if (event.blob) {
-      reader.readAsDataURL(event.blob);
-    }
-  }
-
-  /**
-   * Apply the cropped image and retry barcode extraction
-   */
-  async applyCroppedImage() {
-    if (this.croppedBackImageBlob) {
-      // Create a File from the Blob
-      const fileName = 'cropped-back-image.png';
-      const croppedFile = new File([this.croppedBackImageBlob], fileName, {
-        type: 'image/png',
-      });
-
-      // Update backImage and backImagePreview
-      this.backImage = croppedFile;
-      this.backImagePreview = this.croppedBackImage;
-
-      // Update the files in FilePond
-      this.backFiles = [croppedFile];
-
-      this.isCropping = false; // Hide the cropping tool
-
-      // Retry barcode extraction with the cropped image
-      await this.processBackImage();
-    } else {
-      alert('No cropped image available.');
-    }
-  }
-
-  /**
-   * Cancel cropping
-   */
-  cancelCropping() {
-    this.isCropping = false;
-    this.croppedBackImage = '';
-    this.croppedBackImageBlob = null;
-    this.showCropButton = true;
-  }
-
-  /**
-   * Upscales a base64 image to specified width and height.
-   * @param imageBase64 The base64 string of the image to upscale.
-   * @param width The target width for upscaling.
-   * @param height The target height for upscaling.
-   * @returns A Promise that resolves to the upscaled base64 image string.
-   */
-  async upscaleImage(
-    imageBase64: string,
-    width: number,
-    height: number
-  ): Promise<string> {
-    return new Promise(async (resolve, reject) => {
-      const img = new Image();
-      img.src = imageBase64;
-      img.crossOrigin = 'Anonymous'; // To avoid CORS issues
-      img.onload = async () => {
-        const orientation = await getOrientation(imageBase64);
-
-        let canvas = document.createElement('canvas');
-        let ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject('Cannot get canvas context');
-          return;
-        }
-
-        // Adjust canvas size and transformations based on orientation
-        if (orientation > 4) {
-          canvas.width = height;
-          canvas.height = width;
-        } else {
-          canvas.width = width;
-          canvas.height = height;
-        }
-
-        // Apply transformations based on orientation
-        switch (orientation) {
-          case 2:
-            // Horizontal flip
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1);
-            break;
-          case 3:
-            // 180° rotate
-            ctx.translate(canvas.width, canvas.height);
-            ctx.rotate(Math.PI);
-            break;
-          case 4:
-            // Vertical flip
-            ctx.translate(0, canvas.height);
-            ctx.scale(1, -1);
-            break;
-          case 5:
-            // Vertical flip + 90° rotate right
-            ctx.rotate(0.5 * Math.PI);
-            ctx.scale(1, -1);
-            break;
-          case 6:
-            // 90° rotate right
-            ctx.translate(canvas.width, 0);
-            ctx.rotate(0.5 * Math.PI);
-            break;
-          case 7:
-            // Horizontal flip + 90° rotate right
-            ctx.translate(canvas.width, 0);
-            ctx.rotate(0.5 * Math.PI);
-            ctx.scale(-1, 1);
-            break;
-          case 8:
-            // 90° rotate left
-            ctx.translate(0, canvas.height);
-            ctx.rotate(-0.5 * Math.PI);
-            break;
-          default:
-            break;
-        }
-
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        let upscaledImage = canvas.toDataURL('image/png', 0.9);
-        resolve(upscaledImage);
-      };
-      img.onerror = (error) => reject(error);
-    });
+    this.stepper.next(); // Move to the scanning step
   }
 
   /**
@@ -491,42 +235,6 @@ export class StepperComponent implements OnInit {
       return false;
     }
     return true;
-  }
-
-  /**
-   * Extract Barcode Data using ZXing from Base64 Image
-   */
-  async extractBarcodeData(base64Image: string): Promise<string> {
-    const file = this.base64ToFile(base64Image, 'back-image.png');
-    const hints = new Map<DecodeHintType, any>();
-    hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.PDF_417]);
-
-    const codeReader = new BrowserMultiFormatReader(hints);
-
-    try {
-      const result: Result = await codeReader.decodeFromImageUrl(
-        createImageUrlFromFile(file)
-      );
-      return result.getText();
-    } catch (error) {
-      console.log(error, 'extractBarcodeData');
-      throw new Error('Barcode decoding failed.');
-    }
-  }
-
-  /**
-   * Utility to convert base64 to File
-   */
-  base64ToFile(data: string, filename: string): File {
-    const arr = data.split(',');
-    const mime = arr[0].match(/:(.*?);/)![1];
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
-    }
-    return new File([u8arr], filename, { type: mime });
   }
 
   /**
@@ -646,45 +354,72 @@ export class StepperComponent implements OnInit {
   }
 
   /**
-   * Retry Extraction
+   * Barcode scanning methods
    */
-  retry() {
-    this.stepper.selectedIndex = 1; // Go back to the back image upload step
+
+  // When cameras are found
+  onCamerasFound(devices: MediaDeviceInfo[]): void {
+    this.availableDevices = devices;
+    this.hasDevices = Boolean(devices && devices.length);
+    if (this.hasDevices) {
+      const rearCamera = devices.find((device) =>
+        /back|rear|environment/i.test(device.label)
+      );
+      this.currentDevice = rearCamera || devices[0];
+    } else {
+      this.errorMessage = 'No cameras found.';
+    }
+  }
+
+  // When permission is granted or denied
+  onHasPermission(has: boolean): void {
+    this.hasPermission = has;
+    if (!has) {
+      this.errorMessage = 'Camera permission is required.';
+    } else {
+      this.errorMessage = null;
+    }
+  }
+
+  // When a scan is successful
+  onScanSuccess(result: string): void {
+    this.scanResult = result;
+    this.isScanning = false; // Stop scanning
+
+    try {
+      this.licenseData = this.parseBarcodeData(result);
+      // Proceed to the next step
+      this.stepper.next();
+    } catch (error) {
+      this.errorMessage = 'Failed to parse barcode data.';
+    }
+  }
+
+  // When scanning fails
+  onScanFailure(error: any): void {
+    // You can provide feedback here if needed
+    console.log('Scan failure:', error);
+  }
+
+  // When a scan error occurs
+  onScanError(error: any): void {
+    this.errorMessage = 'Error during scanning: ' + error;
+  }
+
+  // Handle cameras not found
+  onCamerasNotFound(event: any): void {
+    this.errorMessage = 'No cameras found.';
+  }
+
+  // Handle permission denied
+  onPermissionDenied(event: any): void {
+    this.errorMessage = 'Camera permission was denied.';
+  }
+
+  // Retry scanning
+  retryScanning(): void {
     this.errorMessage = null;
-    this.isProcessing = false;
-    this.upscaleAttempt = 0; // Reset upscale attempts
-
-    // Reset processing states
-    this.isBackImageProcessing = false;
-    this.isCropping = false;
-    this.showCropButton = false;
-
-    // Reset upscale dimensions
-    this.upscaleWidth = 1920;
-    this.upscaleHeight = 1920;
+    this.isScanning = true;
+    this.scanResult = '';
   }
-}
-
-// Utility Function (Keep this outside the class)
-function createImageUrlFromFile(file: File): string {
-  // Ensure the file is an image
-  if (!file.type.startsWith('image/')) {
-    throw new Error('File is not an image');
-  }
-
-  // Generate and return a temporary URL for the image file
-  return URL.createObjectURL(file);
-}
-
-async function getOrientation(imageBase64: string): Promise<number> {
-  const base64Data = imageBase64.split(',')[1];
-  const byteCharacters = atob(base64Data);
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
-  }
-  const byteArray = new Uint8Array(byteNumbers);
-  const blob = new Blob([byteArray], { type: 'image/jpeg' });
-  const tags = await exifr.parse(blob, ['Orientation']);
-  return tags?.Orientation || 1;
 }

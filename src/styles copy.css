@@ -65,7 +65,8 @@ button.mat-raised-button:hover {
 
 /* Button Group Styles Specific to Stepper */
 .button-group,
-.navigation-buttons {
+.navigation-buttons,
+.process-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -75,6 +76,18 @@ button.mat-raised-button:hover {
 /* Navigation Buttons Alignment */
 .navigation-buttons {
   justify-content: flex-end;
+}
+
+/* Process Buttons Alignment */
+.process-buttons {
+  justify-content: flex-start;
+}
+
+/* Ensure Image Cropper is Responsive */
+image-cropper {
+  max-width: 100%;
+  display: block;
+  margin: 0 auto;
 }
 
 /* Responsive Adjustments */
@@ -106,18 +119,4 @@ button.mat-raised-button:hover {
   .mat-vertical-content-container {
     margin-left: 0px !important;
   }
-}
-
-/* Styles for the scanner video */
-zxing-scanner {
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-  display: block;
-}
-
-/* Adjust mat-form-field for camera selection */
-mat-form-field {
-  width: 100%;
-  margin-top: 20px;
 }

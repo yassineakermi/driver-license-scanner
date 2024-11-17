@@ -19,7 +19,6 @@
           style="padding-top: 25px"
         ></file-pond>
 
-        <!-- Front Image Preview -->
         <div *ngIf="frontImagePreview" style="margin-top: 20px">
           <img
             [src]="frontImagePreview"
@@ -28,7 +27,6 @@
           />
         </div>
 
-        <!-- Navigation Buttons -->
         <div class="navigation-buttons">
           <button
             mat-raised-button
@@ -59,6 +57,7 @@
 
         <!-- Back Image Preview -->
         <div *ngIf="backImagePreview" style="margin-top: 20px">
+          <p>Back Image Preview:</p>
           <img
             [src]="backImagePreview"
             alt="Back Image Preview"
@@ -66,7 +65,65 @@
           />
         </div>
 
-        <!-- Navigation Buttons -->
+        <div *ngIf="isProcessing" style="margin-bottom: 20px">
+          <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+          <p>Processing...</p>
+        </div>
+
+        <div *ngIf="!isProcessing && errorMessage">
+          <p style="color: red">{{ errorMessage }}</p>
+        </div>
+
+        <!-- Show Crop Button if barcode extraction fails -->
+        <div *ngIf="showCropButton && !isCropping" style="margin-top: 20px">
+          <button mat-raised-button color="primary" (click)="startCropping()">
+            Start Cropping
+          </button>
+        </div>
+
+        <!-- Cropping Tool -->
+        <div *ngIf="isCropping" style="margin-top: 20px">
+          <p>Please select the barcode area to improve scanning.</p>
+          <image-cropper
+          
+            [imageBase64]="backImagePreview"
+            [maintainAspectRatio]="false"
+            format="png"
+            [imageQuality]="1"
+            (imageCropped)="onBackImageCropped($event)"
+          ></image-cropper>
+
+          <!-- Cropped Image Preview -->
+          <div *ngIf="croppedBackImage" style="margin-top: 20px">
+            <p>Cropped Image Preview:</p>
+            <img
+              [src]="croppedBackImage"
+              alt="Cropped Back Image"
+              class="responsive-image"
+            />
+          </div>
+
+          <div class="process-buttons">
+            <button
+              mat-raised-button
+              color="primary"
+              type="button"
+              (click)="applyCroppedImage()"
+              style="margin-right: 10px"
+            >
+              Apply Cropped Image
+            </button>
+            <button
+              mat-raised-button
+              color="warn"
+              type="button"
+              (click)="cancelCropping()"
+            >
+              Cancel Cropping
+            </button>
+          </div>
+        </div>
+
         <div class="navigation-buttons">
           <button
             mat-raised-button
@@ -79,7 +136,7 @@
           <button
             mat-raised-button
             color="primary"
-            [disabled]="!backForm.valid"
+            [disabled]="!backForm.valid || isProcessing || isCropping"
             (click)="onBackImageNext()"
           >
             Next
@@ -88,76 +145,16 @@
       </form>
     </mat-step>
 
-    <!-- Step 3: Real-time Barcode Scanning -->
-    <mat-step>
-      <ng-template matStepLabel>Scan Barcode</ng-template>
-
-      <!-- Display error message if any -->
-      <div *ngIf="errorMessage">
-        <p style="color: red">{{ errorMessage }}</p>
-        <button mat-raised-button color="primary" (click)="retryScanning()">
-          Retry
-        </button>
-      </div>
-
-      <!-- Scanner -->
-      <div *ngIf="isScanning && !errorMessage">
-        <zxing-scanner
-          [device]="currentDevice"
-          [formats]="formatsEnabled"
-          (camerasFound)="onCamerasFound($event)"
-          (scanSuccess)="onScanSuccess($event)"
-          (scanError)="onScanError($event)"
-          (scanFailure)="onScanFailure($event)"
-          (permissionResponse)="onHasPermission($event)"
-          (camerasNotFound)="onCamerasNotFound($event)"
-          (permissionDenied)="onPermissionDenied($event)"
-        ></zxing-scanner>
-
-        <!-- Camera selection -->
-        <div *ngIf="hasDevices">
-          <mat-form-field>
-            <mat-label>Select Camera</mat-label>
-            <mat-select [(value)]="currentDevice">
-              <mat-option
-                *ngFor="let device of availableDevices"
-                [value]="device"
-              >
-                {{
-                  device.label ||
-                  'Camera ' + (availableDevices.indexOf(device) + 1)
-                }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-        </div>
-
-        <!-- Scanning feedback -->
-        <p>Scanning... Please align the barcode within the frame.</p>
-      </div>
-
-      <!-- Show scan result if scanning is done -->
-      <div *ngIf="!isScanning && scanResult">
-        <h3>Scan Successful</h3>
-        <p>Barcode data has been read successfully.</p>
-
-        <button mat-raised-button color="primary" (click)="stepper.next()">
-          Next
-        </button>
-      </div>
-
-      <!-- Navigation Buttons -->
-      <div class="navigation-buttons">
-        <button mat-raised-button color="warn" matStepperPrevious>Back</button>
-      </div>
-    </mat-step>
-
-    <!-- Step 4: Display License Data -->
+    <!-- Step 3: Display License Data -->
     <mat-step>
       <ng-template matStepLabel>Review License Data</ng-template>
 
-      <!-- Display Extracted License Data -->
-      <div *ngIf="licenseData">
+      <div *ngIf="isProcessing" style="margin-bottom: 20px">
+        <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+        <p>Processing...</p>
+      </div>
+
+      <div *ngIf="!isProcessing && licenseData">
         <h3>Extracted License Data</h3>
         <pre>{{ licenseData | json }}</pre>
 
@@ -171,17 +168,15 @@
         </div>
       </div>
 
-      <!-- Display Error Message if No Data -->
-      <div *ngIf="!licenseData && errorMessage">
+      <div *ngIf="!isProcessing && !licenseData && errorMessage">
         <p style="color: red">{{ errorMessage }}</p>
         <div style="margin-top: 20px">
-          <button mat-raised-button color="warn" (click)="retryScanning()">
+          <button mat-raised-button color="warn" (click)="retry()">
             Retry
           </button>
         </div>
       </div>
 
-      <!-- Navigation Buttons -->
       <div class="navigation-buttons">
         <button mat-raised-button color="warn" matStepperPrevious>Back</button>
       </div>
